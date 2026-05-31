@@ -1,4 +1,5 @@
 'use client';
+import Link from 'next/link';
 
 export default function CTASection() {
   return (
@@ -39,24 +40,28 @@ export default function CTASection() {
 
         {/* CTA buttons */}
         <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
-          <button
-            id="cta-main"
-            className="btn-primary animate-pulse-glow font-display font-black text-xl px-12 py-5 rounded-2xl text-white relative overflow-hidden group"
-          >
-            <span className="relative z-10 flex items-center justify-center gap-2">
-              🎓 Start Learning Free
-              <svg className="w-5 h-5 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-              </svg>
-            </span>
-            <div className="absolute inset-0 shimmer opacity-30" />
-          </button>
-          <button
-            id="cta-app"
-            className="btn-secondary font-display font-bold text-xl px-12 py-5 rounded-2xl text-white flex items-center gap-2 justify-center"
-          >
-            📱 Download App
-          </button>
+          <Link href="/auth/signup">
+            <button
+              id="cta-main"
+              className="btn-primary animate-pulse-glow font-display font-black text-xl px-12 py-5 rounded-2xl text-white relative overflow-hidden group"
+            >
+              <span className="relative z-10 flex items-center justify-center gap-2">
+                🎓 Start Learning Free
+                <svg className="w-5 h-5 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                </svg>
+              </span>
+              <div className="absolute inset-0 shimmer opacity-30" />
+            </button>
+          </Link>
+          <Link href="/auth/login">
+            <button
+              id="cta-app"
+              className="btn-secondary font-display font-bold text-xl px-12 py-5 rounded-2xl text-white flex items-center gap-2 justify-center"
+            >
+              🚀 Log In
+            </button>
+          </Link>
         </div>
 
         {/* Trust row */}

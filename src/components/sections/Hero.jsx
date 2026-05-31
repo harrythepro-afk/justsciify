@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useRef, useState, useMemo } from 'react';
+import Link from 'next/link';
 
 const WORDS = ['Plants 🌿', 'Space 🚀', 'Animals 🦁', 'Human Body 🧬', 'Earth 🌍', 'Chemistry 🧪'];
 
@@ -166,21 +167,24 @@ export default function Hero() {
           className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-16 animate-slide-up"
           style={{ animationDelay: '0.5s' }}
         >
-          <button
-            id="hero-cta-primary"
-            className="btn-primary animate-pulse-glow font-display font-bold text-lg px-10 py-4 rounded-2xl text-white relative overflow-hidden group"
-          >
-            <span className="relative z-10 flex items-center gap-2">
-              🚀 Start Learning Free
-              <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-              </svg>
-            </span>
-            <div className="absolute inset-0 shimmer opacity-40" />
-          </button>
+          <Link href="/auth/signup">
+            <button
+              id="hero-cta-primary"
+              className="btn-primary animate-pulse-glow font-display font-bold text-lg px-10 py-4 rounded-2xl text-white relative overflow-hidden group"
+            >
+              <span className="relative z-10 flex items-center gap-2">
+                🚀 Start Learning Free
+                <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                </svg>
+              </span>
+              <div className="absolute inset-0 shimmer opacity-40" />
+            </button>
+          </Link>
           <button
             id="hero-cta-secondary"
             className="btn-secondary font-display font-bold text-lg px-10 py-4 rounded-2xl text-white flex items-center gap-2"
+            onClick={() => document.getElementById('live-quiz-demo')?.scrollIntoView({ behavior: 'smooth' })}
           >
             <span className="text-xl">👀</span> Watch Demo
           </button>

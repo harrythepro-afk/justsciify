@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import Link from 'next/link';
 
 const TOPICS = [
   {
@@ -202,12 +203,14 @@ export default function TopicsShowcase() {
 
         {/* View all link */}
         <div className="text-center mt-10">
-          <button className="btn-secondary font-display font-bold text-sm px-7 py-3 rounded-xl text-white inline-flex items-center gap-2">
-            View All Topics
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-            </svg>
-          </button>
+          <Link href="/auth/signup">
+            <button className="btn-secondary font-display font-bold text-sm px-7 py-3 rounded-xl text-white inline-flex items-center gap-2">
+              View All Topics
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+          </Link>
         </div>
       </div>
     </section>

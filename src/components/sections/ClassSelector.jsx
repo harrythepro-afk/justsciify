@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import Link from 'next/link';
 
 const CLASSES = [
   {
@@ -148,16 +149,18 @@ export default function ClassSelector() {
               </div>
 
               {/* CTA button */}
-              <button
-                className="w-full font-display font-bold py-3.5 rounded-2xl text-sm transition-all duration-300"
-                style={{
-                  background: c.color,
-                  color: '#0f172a',
-                  boxShadow: hovered === c.num ? `0 0 30px ${c.color}60` : `0 0 15px ${c.color}30`,
-                }}
-              >
-                Start Class {c.num} →
-              </button>
+              <Link href="/auth/signup">
+                <button
+                  className="w-full font-display font-bold py-3.5 rounded-2xl text-sm transition-all duration-300"
+                  style={{
+                    background: c.color,
+                    color: '#0f172a',
+                    boxShadow: hovered === c.num ? `0 0 30px ${c.color}60` : `0 0 15px ${c.color}30`,
+                  }}
+                >
+                  Start Class {c.num} →
+                </button>
+              </Link>
             </div>
           ))}
         </div>

@@ -1,5 +1,6 @@
 'use client';
 import { useInView } from 'react-intersection-observer';
+import Link from 'next/link';
 
 const STEPS = [
   {
@@ -129,15 +130,17 @@ export default function HowItWorks() {
         {/* Bottom CTA teaser */}
         <div className="text-center mt-14">
           <p className="font-body text-slate-500 mb-5">Ready to begin? It takes less than 2 minutes to set up.</p>
-          <button
-            id="hiw-cta"
-            className="btn-primary font-display font-bold text-base px-8 py-3.5 rounded-2xl text-white inline-flex items-center gap-2"
-          >
-            🎓 Start for Free
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-            </svg>
-          </button>
+          <Link href="/auth/signup">
+            <button
+              id="hiw-cta"
+              className="btn-primary font-display font-bold text-base px-8 py-3.5 rounded-2xl text-white inline-flex items-center gap-2"
+            >
+              🎓 Start for Free
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+          </Link>
         </div>
       </div>
     </section>

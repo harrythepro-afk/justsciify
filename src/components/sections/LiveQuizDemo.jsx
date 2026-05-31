@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 
 const DEMO_QUESTIONS = [
   {
@@ -75,7 +76,7 @@ export default function LiveQuizDemo() {
   const timerColor = timeLeft > 10 ? '#4ade80' : timeLeft > 5 ? '#facc15' : '#ef4444';
 
   return (
-    <section className="py-24 relative overflow-hidden" id="quiz">
+    <section className="py-24 relative overflow-hidden" id="live-quiz-demo">
       <div className="absolute inset-0 pointer-events-none">
         <div className="aurora-blob w-[600px] h-[600px] left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
           style={{ background: 'radial-gradient(circle, rgba(168,85,247,1), transparent)', opacity: 0.05 }} />
@@ -285,12 +286,14 @@ export default function LiveQuizDemo() {
                 >
                   🔄 Try Again
                 </button>
-                <button
-                  id="quiz-signup"
-                  className="btn-secondary font-display font-bold px-7 py-3 rounded-xl text-white"
-                >
-                  Sign Up for More →
-                </button>
+                <Link href="/auth/signup">
+                  <button
+                    id="quiz-signup"
+                    className="btn-secondary font-display font-bold px-7 py-3 rounded-xl text-white"
+                  >
+                    Sign Up for More →
+                  </button>
+                </Link>
               </div>
             </div>
           )}
