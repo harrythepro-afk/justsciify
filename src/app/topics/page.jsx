@@ -12,6 +12,7 @@ function TopicsContent() {
   const [topics, setTopics] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedClass, setSelectedClass] = useState(null);
+  const [expandedTopicId, setExpandedTopicId] = useState(null);
 
   useEffect(() => {
     if (profile) {
@@ -124,14 +125,17 @@ function TopicsContent() {
             {topics.map((t) => {
               const isCompleted = profile.completedTopics?.includes(t.$id);
               const cardColor = t.color || '#38bdf8';
+              const isExpanded = expandedTopicId === t.$id;
 
               return (
                 <div
                   key={t.$id}
-                  onClick={() => router.push(`/quiz?topicId=${t.$id}`)}
-                  className="sci-card p-6 flex flex-col justify-between cursor-pointer group hover:-translate-y-2.5 transition-all duration-300 relative"
+                  onClick={() => setExpandedTopicId(isExpanded ? null : t.$id)}
+                  className={`sci-card p-6 flex flex-col justify-between cursor-pointer group transition-all duration-300 relative ${
+                    isExpanded ? 'border-sky-500/50' : 'hover:-translate-y-2.5'
+                  }`}
                   style={{
-                    borderColor: isCompleted ? '#4ade8050' : 'rgba(255,255,255,0.06)',
+                    borderColor: isExpanded ? `${cardColor}60` : isCompleted ? '#4ade8050' : 'rgba(255,255,255,0.06)',
                     background: 'rgba(11, 18, 37, 0.7)',
                   }}
                 >
@@ -159,19 +163,61 @@ function TopicsContent() {
                     <h3 className="font-display font-black text-lg text-white mb-2 group-hover:text-slate-100 transition-colors">
                       {t.title}
                     </h3>
-                    <p className="font-body text-slate-400 text-xs leading-relaxed line-clamp-3">
+                    <p className="font-body text-slate-400 text-xs leading-relaxed line-clamp-3 mb-4">
                       {t.description}
                     </p>
+
+                    {/* Subtopics List Section */}
+                    {isExpanded && t.subtopics && t.subtopics.length > 0 && (
+                      <div className="mt-4 pt-4 border-t border-white/5 space-y-2.5 animate-fade-in">
+                        <h4 className="font-display font-bold text-[10px] text-slate-500 uppercase tracking-wider mb-2">
+                          Chapters / Subtopics
+                        </h4>
+                        {t.subtopics.map((sub) => {
+                          const isSubDone = profile.completedTopics?.includes(sub.$id || sub.id);
+                          return (
+                            <div
+                              key={sub.$id || sub.id}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                router.push(`/quiz?topicId=${t.$id}&subtopicId=${sub.$id || sub.id}`);
+                              }}
+                              className="p-3 rounded-xl flex items-center justify-between gap-3 group/sub bg-slate-950/40 border border-white/5 hover:border-sky-500/30 transition-all hover:bg-slate-900/60"
+                            >
+                              <div className="flex-1">
+                                <div className="font-display font-bold text-xs text-white group-hover/sub:text-sky-400 transition-colors">
+                                  {sub.title}
+                                </div>
+                                <div className="font-body text-[9px] text-slate-500 line-clamp-1 mt-0.5">
+                                  {sub.description}
+                                </div>
+                              </div>
+                              {isSubDone ? (
+                                <span className="text-green-400 text-[10px] font-bold bg-green-500/10 px-2 py-0.5 rounded-full border border-green-500/20">
+                                  ✓ Mastered
+                                </span>
+                              ) : (
+                                <span className="font-display text-[10px] font-bold text-sky-400 group-hover/sub:translate-x-0.5 transition-transform">
+                                  Start →
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
 
                   <div className="mt-8 pt-4 border-t border-white/5 flex items-center justify-between">
                     <span className="font-body text-[11px] text-slate-500">
-                      📝 {t.questionCount || 0} Questions
+                      📝 {t.subtopics?.length || 0} Subtopics
                     </span>
                     <span className="font-display font-bold text-xs transition-all flex items-center gap-1"
                       style={{ color: isCompleted ? '#4ade80' : cardColor }}>
-                      {isCompleted ? 'Replay Quiz' : 'Start Journey'} 
-                      <span className="transform translate-x-0 group-hover:translate-x-1 transition-transform">→</span>
+                      {isExpanded ? 'Collapse' : 'Explore Chapters'}
+                      <span className="transform transition-transform group-hover:translate-x-0.5">
+                        {isExpanded ? '↑' : '→'}
+                      </span>
                     </span>
                   </div>
                 </div>

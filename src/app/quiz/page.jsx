@@ -11,8 +11,10 @@ function QuizContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const topicId = searchParams.get('topicId');
+  const subtopicId = searchParams.get('subtopicId');
 
   const [topic, setTopic] = useState(null);
+  const [subtopic, setSubtopic] = useState(null);
   const [questionsPool, setQuestionsPool] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -42,26 +44,37 @@ function QuizContent() {
 
     (async () => {
       try {
-        const [tData, qPool] = await Promise.all([
-          getTopic(topicId),
-          getQuestions(topicId, 30), // Load a larger pool of questions for adaptive choice
-        ]);
+        const tData = await getTopic(topicId);
         setTopic(tData);
+
+        let qPool = [];
+        if (subtopicId) {
+          const sub = tData.subtopics?.find(s => s.$id === subtopicId || s.id === subtopicId);
+          setSubtopic(sub);
+          qPool = await getQuestions(subtopicId, 30);
+        } else {
+          // Fallback: If no subtopicId is provided, get questions for the first subtopic of this topic
+          const firstSub = tData.subtopics?.[0];
+          if (firstSub) {
+            setSubtopic(firstSub);
+            qPool = await getQuestions(firstSub.$id || firstSub.id, 30);
+          } else {
+            qPool = await getQuestions(topicId, 30);
+          }
+        }
         setQuestionsPool(qPool);
 
         // Select initial question at Difficulty 2
         if (qPool.length > 0) {
           // Find closest to difficulty 2
           let bestQ = qPool[0];
-          let bestIdx = 0;
           let minDiff = Math.abs(qPool[0].difficulty - 2);
 
-          qPool.forEach((q, idx) => {
+          qPool.forEach((q) => {
             const diffDist = Math.abs(q.difficulty - 2);
             if (diffDist < minDiff) {
               minDiff = diffDist;
               bestQ = q;
-              bestIdx = idx;
             }
           });
 
@@ -75,7 +88,7 @@ function QuizContent() {
         setLoading(false);
       }
     })();
-  }, [topicId, router]);
+  }, [topicId, subtopicId, router]);
 
   // Start question timer
   useEffect(() => {
@@ -166,14 +179,16 @@ function QuizContent() {
   const finishQuiz = async () => {
     setSaving(true);
     try {
+      const activeId = subtopicId || topic.$id;
       // Save quiz result
-      await saveQuizResult(user.$id, topic.title, score, questionsCount, xpEarned);
+      await saveQuizResult(user.$id, activeId, score, questionsCount, xpEarned);
       // Add XP and update belt levels
-      await addXP(user.$id, profile.xp, xpEarned, topic.$id, profile.completedTopics);
+      await addXP(user.$id, profile.xp, xpEarned, activeId, profile.completedTopics);
       // Refresh AuthContext profile details
       await refreshProfile();
       // Redirect to results
-      router.push(`/results?topicTitle=${encodeURIComponent(topic.title)}&score=${score}&total=${questionsCount}&xp=${xpEarned}`);
+      const quizTitle = subtopic ? `${topic.title} (${subtopic.title})` : topic.title;
+      router.push(`/results?topicTitle=${encodeURIComponent(quizTitle)}&score=${score}&total=${questionsCount}&xp=${xpEarned}`);
     } catch (err) {
       console.error('Error saving quiz results:', err);
       router.push('/dashboard');

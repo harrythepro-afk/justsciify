@@ -1,28 +1,51 @@
-import { getDatabases, getAccount, DB_ID, COL, ID, Query } from './appwrite';
+// Helper to extract JSON from fetch responses safely
+async function handleResponse(res) {
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || 'Something went wrong');
+  }
+  return data;
+}
 
 // ─── Auth helpers ────────────────────────────────────────────────────────────
 
 export async function createAccount(email, password, name) {
-  const account = getAccount();
-  const user = await account.create(ID.unique(), email, password, name);
-  return user;
+  const data = await fetch('/api/auth/signup', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password, name }),
+  }).then(handleResponse);
+
+  const u = data.user;
+  return { ...u, $id: u._id };
 }
 
 export async function loginUser(email, password) {
-  const account = getAccount();
-  return account.createEmailPasswordSession(email, password);
+  const data = await fetch('/api/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  }).then(handleResponse);
+
+  const u = data.user;
+  return { ...u, $id: u._id, userId: u._id };
 }
 
 export async function logoutUser() {
-  const account = getAccount();
-  return account.deleteSession('current');
+  return fetch('/api/auth/logout', {
+    method: 'POST',
+  }).then(handleResponse);
 }
 
 export async function getCurrentUser() {
   try {
-    const account = getAccount();
-    return await account.get();
-  } catch {
+    const res = await fetch('/api/auth/me');
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (!data.user) return null;
+    return { ...data.user, $id: data.user._id };
+  } catch (error) {
+    console.error('getCurrentUser error:', error);
     return null;
   }
 }
@@ -30,32 +53,32 @@ export async function getCurrentUser() {
 // ─── User profile ─────────────────────────────────────────────────────────────
 
 export async function createUserProfile(userId, name, email, classNum) {
-  const db = getDatabases();
-  return db.createDocument(DB_ID, COL.USERS, userId, {
-    userId,
-    name,
-    email,
-    classNum: parseInt(classNum),
-    beltLevel: 'white',
-    xp: 0,
-    streak: 0,
-    lastActive: new Date().toISOString(),
-    completedTopics: [],
-  });
+  // In MongoDB, the profile is part of the User model itself.
+  // We simply update the classNum and any profile details during this call.
+  const data = await fetch('/api/auth/me', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, classNum: parseInt(classNum) }),
+  }).then(handleResponse);
+
+  const u = data.user;
+  return { ...u, $id: u._id };
 }
 
 export async function getUserProfile(userId) {
-  try {
-    const db = getDatabases();
-    return await db.getDocument(DB_ID, COL.USERS, userId);
-  } catch {
-    return null;
-  }
+  // Profile matches User in MongoDB
+  return getCurrentUser();
 }
 
 export async function updateUserProfile(userId, data) {
-  const db = getDatabases();
-  return db.updateDocument(DB_ID, COL.USERS, userId, data);
+  const resData = await fetch('/api/auth/me', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  }).then(handleResponse);
+
+  const u = resData.user;
+  return { ...u, $id: u._id };
 }
 
 // ─── XP & Belt logic ─────────────────────────────────────────────────────────
@@ -85,136 +108,130 @@ export function getNextBeltThreshold(xp) {
 }
 
 export async function addXP(userId, currentXP, earnedXP, topicId, completedTopics = []) {
+  // In MongoDB, XP is handled automatically on quiz submissions,
+  // but if we call this directly, we can update it via profile PUT.
   const newXP = currentXP + earnedXP;
   const newBelt = getBeltForXP(newXP);
   const updatedTopics = completedTopics.includes(topicId)
     ? completedTopics
     : [...completedTopics, topicId];
 
-  await updateUserProfile(userId, {
+  const profile = await updateUserProfile(userId, {
     xp: newXP,
     beltLevel: newBelt,
     completedTopics: updatedTopics,
     lastActive: new Date().toISOString(),
   });
 
-  return { newXP, newBelt };
+  return { newXP, newBelt, profile };
 }
 
 // ─── Topics ───────────────────────────────────────────────────────────────────
 
 export async function getTopics(classNum = null) {
-  const db = getDatabases();
-  const queries = [Query.orderAsc('title')];
-  if (classNum) queries.push(Query.equal('classNum', parseInt(classNum)));
-  const res = await db.listDocuments(DB_ID, COL.TOPICS, queries);
-  return res.documents;
+  const url = classNum ? `/api/topics?classNum=${classNum}` : '/api/topics';
+  const data = await fetch(url).then(handleResponse);
+  return data.topics;
 }
 
 export async function getTopic(topicId) {
-  const db = getDatabases();
-  return db.getDocument(DB_ID, COL.TOPICS, topicId);
+  const data = await fetch(`/api/topics/${topicId}`).then(handleResponse);
+  return data.topic;
 }
 
 // ─── Questions ────────────────────────────────────────────────────────────────
 
-export async function getQuestions(topicId, limit = 10) {
-  const db = getDatabases();
-  const res = await db.listDocuments(DB_ID, COL.QUESTIONS, [
-    Query.equal('topicId', topicId),
-    Query.limit(limit),
-  ]);
-  // Shuffle questions
-  const docs = res.documents;
-  for (let i = docs.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [docs[i], docs[j]] = [docs[j], docs[i]];
-  }
-  return docs;
+export async function getQuestions(subtopicId, limit = 10) {
+  // Fetches from subtopic-specific questions API
+  const data = await fetch(`/api/subtopics/${subtopicId}/questions`).then(handleResponse);
+  return data.questions.slice(0, limit);
 }
 
 // ─── Quiz Results ─────────────────────────────────────────────────────────────
 
-export async function saveQuizResult(userId, topicId, score, total, xpEarned) {
-  const db = getDatabases();
-  return db.createDocument(DB_ID, COL.QUIZ_RESULTS, ID.unique(), {
-    userId,
-    topicId,
-    score,
-    total,
-    xpEarned,
-    date: new Date().toISOString(),
-  });
+export async function saveQuizResult(userId, subtopicId, score, total, xpEarned) {
+  const data = await fetch('/api/quiz/results', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ subtopicId, score, total, xpEarned }),
+  }).then(handleResponse);
+
+  return data.result;
 }
 
 export async function getUserResults(userId, limit = 10) {
-  const db = getDatabases();
-  const res = await db.listDocuments(DB_ID, COL.QUIZ_RESULTS, [
-    Query.equal('userId', userId),
-    Query.orderDesc('date'),
-    Query.limit(limit),
-  ]);
-  return res.documents;
+  const data = await fetch(`/api/quiz/results?limit=${limit}`).then(handleResponse);
+  return data.results;
 }
 
-// ─── Admin ────────────────────────────────────────────────────────────────────
+// ─── Leaderboard ──────────────────────────────────────────────────────────────
+
+export async function getLeaderboard(limit = 10) {
+  const data = await fetch(`/api/leaderboard?limit=${limit}`).then(handleResponse);
+  return data.users;
+}
+
+// ─── Admin / Utilities ────────────────────────────────────────────────────────
 
 export async function getAllUsers(limit = 100) {
-  const db = getDatabases();
-  const res = await db.listDocuments(DB_ID, COL.USERS, [Query.limit(limit)]);
-  return res.documents;
+  const data = await fetch(`/api/leaderboard?limit=${limit}`).then(handleResponse);
+  return data;
 }
 
 export async function getAllTopics() {
-  const db = getDatabases();
-  const res = await db.listDocuments(DB_ID, COL.TOPICS, [Query.orderAsc('classNum')]);
-  return res.documents;
+  return getTopics();
 }
 
 export async function createTopic(data) {
-  const db = getDatabases();
-  return db.createDocument(DB_ID, COL.TOPICS, ID.unique(), data);
+  return fetch('/api/topics', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  }).then(handleResponse);
 }
 
 export async function updateTopic(topicId, data) {
-  const db = getDatabases();
-  return db.updateDocument(DB_ID, COL.TOPICS, topicId, data);
+  return fetch(`/api/topics/${topicId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  }).then(handleResponse);
 }
 
 export async function deleteTopic(topicId) {
-  const db = getDatabases();
-  return db.deleteDocument(DB_ID, COL.TOPICS, topicId);
+  return fetch(`/api/topics/${topicId}`, {
+    method: 'DELETE',
+  }).then(handleResponse);
 }
 
 export async function createQuestion(data) {
-  const db = getDatabases();
-  return db.createDocument(DB_ID, COL.QUESTIONS, ID.unique(), data);
+  const { subtopicId } = data;
+  return fetch(`/api/subtopics/${subtopicId}/questions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  }).then(handleResponse);
 }
 
 export async function updateQuestion(questionId, data) {
-  const db = getDatabases();
-  return db.updateDocument(DB_ID, COL.QUESTIONS, questionId, data);
+  return fetch(`/api/questions/${questionId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  }).then(handleResponse);
 }
 
 export async function deleteQuestion(questionId) {
-  const db = getDatabases();
-  return db.deleteDocument(DB_ID, COL.QUESTIONS, questionId);
+  return fetch(`/api/questions/${questionId}`, {
+    method: 'DELETE',
+  }).then(handleResponse);
 }
 
-export async function getQuestionsByTopic(topicId) {
-  const db = getDatabases();
-  const res = await db.listDocuments(DB_ID, COL.QUESTIONS, [
-    Query.equal('topicId', topicId),
-    Query.limit(100),
-  ]);
-  return res.documents;
+export async function getQuestionsByTopic(subtopicId) {
+  return getQuestions(subtopicId);
 }
 
-export async function getAllQuizResults(limit = 200) {
-  const db = getDatabases();
-  const res = await db.listDocuments(DB_ID, COL.QUIZ_RESULTS, [
-    Query.orderDesc('date'),
-    Query.limit(limit),
-  ]);
-  return res.documents;
+export async function getAllQuizResults(limit = 100) {
+  return getUserResults(null, limit);
 }
+
