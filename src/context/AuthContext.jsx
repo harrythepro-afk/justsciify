@@ -28,17 +28,29 @@ export function AuthProvider({ children }) {
     await loginUser(email, password);
     const u = await getCurrentUser();
     setUser(u);
-    const p = await getUserProfile(u.$id);
+    let p = await getUserProfile(u.$id);
+    // Auto-create profile if account exists but profile is missing
+    if (!p) {
+      p = await createUserProfile(u.$id, u.name || 'Student', email, 4);
+    }
     setProfile(p);
     return u;
   };
 
   const signup = async (email, password, name, classNum) => {
-    await createAccount(email, password, name);
+    try {
+      await createAccount(email, password, name);
+    } catch (err) {
+      // If account already exists, that's okay — we'll just log in
+      if (!err.message?.includes('already exists')) throw err;
+    }
     await loginUser(email, password);
     const u = await getCurrentUser();
     setUser(u);
-    const p = await createUserProfile(u.$id, name, email, classNum);
+    let p = await getUserProfile(u.$id);
+    if (!p) {
+      p = await createUserProfile(u.$id, name, email, classNum);
+    }
     setProfile(p);
     return u;
   };
