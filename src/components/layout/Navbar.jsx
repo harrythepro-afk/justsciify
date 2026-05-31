@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
@@ -29,7 +30,7 @@ export default function Navbar() {
     >
       <div className="max-w-7xl mx-auto px-6 flex items-center justify-between">
         {/* Logo */}
-        <a href="/" className="flex items-center gap-2.5 group">
+        <Link href="/" className="flex items-center gap-2.5 group">
           <div className="relative">
             <div className="w-9 h-9 rounded-xl flex items-center justify-center text-lg"
               style={{ background: 'linear-gradient(135deg, #0ea5e9, #a855f7)', boxShadow: '0 0 20px rgba(14,165,233,0.4)' }}>
@@ -41,7 +42,7 @@ export default function Navbar() {
             <span className="text-white">Just</span>
             <span className="gradient-text">Sciify</span>
           </span>
-        </a>
+        </Link>
 
         {/* Desktop links */}
         <div className="hidden md:flex items-center gap-1">
@@ -58,14 +59,18 @@ export default function Navbar() {
 
         {/* Auth buttons */}
         <div className="hidden md:flex items-center gap-3">
-          <button className="font-body font-bold text-sm text-slate-400 hover:text-white transition-colors px-4 py-2">
-            Log In
-          </button>
-          <button
-            className="btn-primary font-display font-bold text-sm px-5 py-2.5 rounded-xl text-white"
-          >
-            Start Free 🚀
-          </button>
+          <Link href="/auth/login">
+            <button className="font-body font-bold text-sm text-slate-400 hover:text-white transition-colors px-4 py-2">
+              Log In
+            </button>
+          </Link>
+          <Link href="/auth/signup">
+            <button
+              className="btn-primary font-display font-bold text-sm px-5 py-2.5 rounded-xl text-white"
+            >
+              Start Free 🚀
+            </button>
+          </Link>
         </div>
 
         {/* Mobile hamburger */}
@@ -101,11 +106,13 @@ export default function Navbar() {
             </a>
           ))}
           <div className="pt-3 border-t border-white/[0.06] mt-3">
-            <button
-              className="btn-primary w-full font-display font-bold py-3 rounded-xl text-white"
-            >
-              Start Free 🚀
-            </button>
+            <Link href="/auth/signup" className="block w-full">
+              <button
+                className="btn-primary w-full font-display font-bold py-3 rounded-xl text-white"
+              >
+                Start Free 🚀
+              </button>
+            </Link>
           </div>
         </div>
       )}
