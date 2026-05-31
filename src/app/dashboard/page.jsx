@@ -47,7 +47,22 @@ function DashboardContent() {
     })();
   }, [profile, user]);
 
-  if (!profile) return null;
+  if (!profile) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-white px-4" style={{ background: '#03050F' }}>
+        <div className="text-center p-8 rounded-3xl max-w-md w-full" style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)' }}>
+          <div className="text-4xl mb-4">⚠️</div>
+          <h2 className="text-2xl font-display font-bold mb-2 text-red-400">Profile Not Found</h2>
+          <p className="text-slate-300 text-sm font-body mb-6">
+            We couldn't fetch your profile from the database. This usually happens if the <strong>Users collection permissions</strong> are not set in Appwrite, or if the signup was incomplete.
+          </p>
+          <button onClick={logout} className="w-full btn-primary font-display font-bold text-sm px-6 py-3 rounded-xl text-white">
+            Log Out & Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const belt = BELT_META[profile.beltLevel] || BELT_META.white;
   const nextThreshold = getNextBeltThreshold(profile.xp);
