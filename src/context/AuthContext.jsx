@@ -25,14 +25,27 @@ export function AuthProvider({ children }) {
   }, []);
 
   const login = async (email, password) => {
-    // Clear any stale session first to avoid "session already active" errors
-    try { await logoutUser(); } catch {}
-    await loginUser(email, password);
-    const u = await getCurrentUser();
+    // Check if already logged in with a valid session
+    let u = await getCurrentUser();
+    if (u) {
+      setUser(u);
+      let p = await getUserProfile(u.$id);
+      if (!p) {
+        p = await createUserProfile(u.$id, u.name || 'Student', email, 4);
+      }
+      setProfile(p);
+      return u;
+    }
+    // No existing session — create one
+    const session = await loginUser(email, password);
+    u = await getCurrentUser();
+    // Fallback: if cookies don't work (cross-domain), use session data
+    if (!u && session) {
+      u = { $id: session.userId, name: '', email };
+    }
     if (!u) throw new Error('Login failed. Please try again.');
     setUser(u);
     let p = await getUserProfile(u.$id);
-    // Auto-create profile if account exists but profile is missing
     if (!p) {
       p = await createUserProfile(u.$id, u.name || 'Student', email, 4);
     }
@@ -41,16 +54,19 @@ export function AuthProvider({ children }) {
   };
 
   const signup = async (email, password, name, classNum) => {
-    // Clear any stale session first
+    // Clear any existing session first
     try { await logoutUser(); } catch {}
     try {
       await createAccount(email, password, name);
     } catch (err) {
-      // If account already exists, that's okay — we'll just log in
       if (!err.message?.includes('already exists')) throw err;
     }
-    await loginUser(email, password);
-    const u = await getCurrentUser();
+    const session = await loginUser(email, password);
+    let u = await getCurrentUser();
+    // Fallback: if cookies don't work (cross-domain), use session data
+    if (!u && session) {
+      u = { $id: session.userId, name, email };
+    }
     if (!u) throw new Error('Signup failed. Please try again.');
     setUser(u);
     let p = await getUserProfile(u.$id);
