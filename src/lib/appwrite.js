@@ -1,7 +1,7 @@
 import { Client, Account, Databases, ID, Query } from 'appwrite';
 
 const PROJECT_ID = '6a1bbec7000c4c660a17';
-const ENDPOINT  = 'https://cloud.appwrite.io/v1';
+const ENDPOINT  = 'https://fra.cloud.appwrite.io/v1';
 export const DB_ID = '6a1bc2040017374a7f4a';
 
 // Collection IDs — must match what the setup script creates
