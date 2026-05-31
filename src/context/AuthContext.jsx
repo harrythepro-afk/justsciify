@@ -25,8 +25,11 @@ export function AuthProvider({ children }) {
   }, []);
 
   const login = async (email, password) => {
+    // Clear any stale session first to avoid "session already active" errors
+    try { await logoutUser(); } catch {}
     await loginUser(email, password);
     const u = await getCurrentUser();
+    if (!u) throw new Error('Login failed. Please try again.');
     setUser(u);
     let p = await getUserProfile(u.$id);
     // Auto-create profile if account exists but profile is missing
@@ -38,6 +41,8 @@ export function AuthProvider({ children }) {
   };
 
   const signup = async (email, password, name, classNum) => {
+    // Clear any stale session first
+    try { await logoutUser(); } catch {}
     try {
       await createAccount(email, password, name);
     } catch (err) {
@@ -46,6 +51,7 @@ export function AuthProvider({ children }) {
     }
     await loginUser(email, password);
     const u = await getCurrentUser();
+    if (!u) throw new Error('Signup failed. Please try again.');
     setUser(u);
     let p = await getUserProfile(u.$id);
     if (!p) {
