@@ -4,6 +4,26 @@ import Topic from '@/models/Topic';
 import Subtopic from '@/models/Subtopic';
 import Question from '@/models/Question';
 
+// Intercept Question.create to map string difficulties to numeric values for backward compatibility
+const originalCreate = Question.create.bind(Question);
+Question.create = function(data, ...args) {
+  const mapDiff = (q) => {
+    if (q && typeof q === 'object') {
+      if (q.difficulty === 'easy') q.difficulty = 3;
+      else if (q.difficulty === 'medium') q.difficulty = 6;
+      else if (q.difficulty === 'hard') q.difficulty = 9;
+    }
+    return q;
+  };
+  
+  if (Array.isArray(data)) {
+    data.forEach(mapDiff);
+  } else {
+    mapDiff(data);
+  }
+  return originalCreate(data, ...args);
+};
+
 export async function GET() {
   try {
     await dbConnect();

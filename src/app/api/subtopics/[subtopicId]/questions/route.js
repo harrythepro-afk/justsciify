@@ -1,29 +1,44 @@
 import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
+import jwt from 'jsonwebtoken';
 import dbConnect from '@/lib/mongodb';
 import Question from '@/models/Question';
+import User from '@/models/User';
+
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  console.error('JWT_SECRET environment variable is not defined!');
+}
 
 export async function GET(req, { params }) {
   try {
     await dbConnect();
-    const { subtopicId } = params;
+    
+    // Auth check
+    const cookieStore = cookies();
+    const token = cookieStore.get('token')?.value;
+    if (!token) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    try {
+      jwt.verify(token, JWT_SECRET);
+    } catch {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
+    const { subtopicId } = params;
     const questions = await Question.find({ subtopicId });
 
     // Format IDs for compatibility with old Appwrite schema
     const formattedQuestions = questions.map((q) => {
       const qObj = q.toObject();
-      let difficultyNum = 5;
-      if (qObj.difficulty === 'easy') difficultyNum = 3;
-      if (qObj.difficulty === 'medium') difficultyNum = 6;
-      if (qObj.difficulty === 'hard') difficultyNum = 9;
-
       return {
         ...qObj,
         id: q._id.toString(),
         $id: q._id.toString(),
         question: qObj.questionText, // Match frontend's question field
         correctIndex: qObj.correctOption,
-        difficulty: difficultyNum,
+        difficulty: qObj.difficulty, // Natively returns numeric difficulty
       };
     });
 
@@ -46,6 +61,25 @@ export async function GET(req, { params }) {
 export async function POST(req, { params }) {
   try {
     await dbConnect();
+    
+    // Admin check
+    const cookieStore = cookies();
+    const token = cookieStore.get('token')?.value;
+    if (!token) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    let decoded;
+    try {
+      decoded = jwt.verify(token, JWT_SECRET);
+    } catch {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const user = await User.findById(decoded.userId);
+    if (!user || user.email !== 'admin@justsciify.com') {
+      return NextResponse.json({ error: 'Forbidden: Admins Only' }, { status: 403 });
+    }
+
     const { subtopicId } = params;
     const data = await req.json();
 
@@ -54,7 +88,11 @@ export async function POST(req, { params }) {
       subtopicId,
     });
 
-    return NextResponse.json({ question }, { status: 201 });
+    return NextResponse.json({
+      ...question.toObject(),
+      id: question._id.toString(),
+      $id: question._id.toString()
+    }, { status: 201 });
   } catch (error) {
     console.error('Create question error:', error);
     return NextResponse.json(

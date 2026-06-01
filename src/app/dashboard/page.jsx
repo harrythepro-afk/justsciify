@@ -216,11 +216,23 @@ function DashboardContent() {
                 {results.map(r => {
                   const pct = Math.round((r.score / r.total) * 100);
                   const color = pct >= 80 ? '#4ade80' : pct >= 50 ? '#facc15' : '#f87171';
+
+                  let displayName = 'Science Quiz';
+                  if (r.subtopicId) {
+                    if (typeof r.subtopicId === 'object') {
+                      const subTitle = r.subtopicId.title;
+                      const topTitle = r.subtopicId.topicId?.title;
+                      displayName = topTitle ? `${topTitle}: ${subTitle}` : subTitle;
+                    } else {
+                      displayName = r.subtopicId;
+                    }
+                  }
+
                   return (
                     <div key={r.$id} className="p-4 rounded-2xl"
                       style={{ background: 'rgba(11,18,37,0.8)', border: '1px solid rgba(255,255,255,0.06)' }}>
                       <div className="flex items-center justify-between mb-2">
-                        <span className="font-display font-bold text-white text-xs">{r.topicId}</span>
+                        <span className="font-display font-bold text-white text-xs">{displayName}</span>
                         <span className="font-display font-bold text-xs" style={{ color }}>
                           {r.score}/{r.total}
                         </span>

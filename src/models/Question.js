@@ -24,9 +24,10 @@ const QuestionSchema = new mongoose.Schema({
     required: [true, 'Please provide an explanation for the correct answer'],
   },
   difficulty: {
-    type: String,
-    enum: ['easy', 'medium', 'hard'],
-    default: 'medium',
+    type: Number,
+    min: 1,
+    max: 10,
+    default: 5,
   },
 }, { timestamps: true });
 

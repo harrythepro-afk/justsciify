@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import AuthGuard from '@/components/AuthGuard';
-import { getQuestions, saveQuizResult, addXP } from '@/lib/db';
+import { getTopics, getQuestions, saveQuizResult, addXP } from '@/lib/db';
 
 function OlympiadContent() {
   const { user, profile, refreshProfile } = useAuth();
@@ -43,11 +43,26 @@ function OlympiadContent() {
   const handleStartExam = async () => {
     setLoading(true);
     try {
-      // Draw high difficulty questions (6 to 10) on Forces and water cycle
-      const [q1, q2] = await Promise.all([
-        getQuestions('t_gravity_force', 10),
-        getQuestions('t_water_cycle', 10)
-      ]);
+      // Fetch all topics to dynamically find valid subtopic IDs
+      const topics = await getTopics();
+      let subtopicIds = [];
+      for (const topic of topics) {
+        if (topic.subtopics && topic.subtopics.length > 0) {
+          subtopicIds.push(...topic.subtopics.map(s => s._id || s.id));
+        }
+      }
+
+      // Draw high difficulty questions from the first two subtopics
+      let q1 = [], q2 = [];
+      if (subtopicIds.length > 0) {
+        q1 = await getQuestions(subtopicIds[0], 15);
+      }
+      if (subtopicIds.length > 1) {
+        q2 = await getQuestions(subtopicIds[1], 15);
+      } else if (subtopicIds.length > 0) {
+        q2 = await getQuestions(subtopicIds[0], 15);
+      }
+
       // Filter out low difficulty and merge
       const merged = [...q1, ...q2]
         .filter(q => q.difficulty >= 6)

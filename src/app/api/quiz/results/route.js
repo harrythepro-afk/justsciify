@@ -5,7 +5,10 @@ import dbConnect from '@/lib/mongodb';
 import QuizResult from '@/models/QuizResult';
 import User from '@/models/User';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'justsciify_super_secret_key_12345';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  console.error('JWT_SECRET environment variable is not defined!');
+}
 
 const BELT_THRESHOLDS = [
   { belt: 'white',  min: 0 },

@@ -186,7 +186,10 @@ function ParentContent() {
               </div>
 
               {/* Weekly report settings toggle */}
-              <div className="sci-card p-6" style={{ background: 'rgba(11, 18, 37, 0.6)' }}>
+              <div className="sci-card p-6 relative overflow-hidden" style={{ background: 'rgba(11, 18, 37, 0.6)' }}>
+                <div className="absolute top-2 right-2 bg-indigo-500/15 border border-indigo-500/30 text-indigo-400 font-display font-bold text-[8px] tracking-widest uppercase px-2 py-0.5 rounded-full">
+                  Coming Soon
+                </div>
                 <h3 className="font-display font-bold text-white text-sm mb-4">📨 Automatic Reporting</h3>
                 
                 <div className="space-y-4 font-body text-xs">

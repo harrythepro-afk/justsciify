@@ -44,6 +44,14 @@ const UserSchema = new mongoose.Schema({
     type: [String], // Array of completed Topic IDs or Subtopic IDs
     default: [],
   },
+  unlockedAvatars: {
+    type: [String],
+    default: ['explorer_default'],
+  },
+  avatarId: {
+    type: String,
+    default: 'explorer_default',
+  },
 }, { timestamps: true });
 
 export default mongoose.models.User || mongoose.model('User', UserSchema);

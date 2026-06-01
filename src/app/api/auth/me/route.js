@@ -4,7 +4,10 @@ import jwt from 'jsonwebtoken';
 import dbConnect from '@/lib/mongodb';
 import User from '@/models/User';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'justsciify_super_secret_key_12345';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  console.error('JWT_SECRET environment variable is not defined!');
+}
 
 export async function GET() {
   try {
@@ -58,7 +61,7 @@ export async function PUT(req) {
     const data = await req.json();
     
     // We only update clean updatable fields like classNum, name, xp, beltLevel, completedTopics, streak, lastActive
-    const updatableFields = ['name', 'classNum', 'xp', 'beltLevel', 'completedTopics', 'streak', 'lastActive'];
+    const updatableFields = ['name', 'classNum', 'xp', 'beltLevel', 'completedTopics', 'streak', 'lastActive', 'unlockedAvatars', 'avatarId'];
     const updateData = {};
     for (const key of updatableFields) {
       if (data[key] !== undefined) {

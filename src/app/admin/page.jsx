@@ -296,7 +296,7 @@ function AdminContent() {
             { id: 'stats', label: '📊 System Stats' },
             { id: 'topics', label: '🗂️ Manage Topics' },
             { id: 'questions', label: '📝 Manage Questions' },
-            { id: 'ai_generator', label: '🧠 AI Question Generator' },
+            { id: 'ai_generator', label: '🧠 AI Question Generator (Coming Soon)' },
             { id: 'users', label: '👥 Student Directory' }
           ].map((tab) => (
             <button
@@ -671,7 +671,10 @@ function AdminContent() {
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 
                 {/* Configuration Console */}
-                <div className="sci-card p-6 bg-slate-900/50 h-fit">
+                <div className="sci-card p-6 bg-slate-900/50 h-fit relative overflow-hidden">
+                  <div className="absolute top-2 right-2 bg-orange-500/15 border border-orange-500/30 text-orange-400 font-display font-bold text-[8px] tracking-widest uppercase px-2 py-0.5 rounded-full">
+                    Simulated AI (Beta)
+                  </div>
                   <h3 className="font-display font-bold text-white text-sm mb-4">🧠 AI Question Architect</h3>
                   
                   <div className="mb-4">

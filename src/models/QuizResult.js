@@ -7,7 +7,7 @@ const QuizResultSchema = new mongoose.Schema({
     required: true,
   },
   subtopicId: {
-    type: mongoose.Schema.Types.ObjectId,
+    type: String,
     ref: 'Subtopic',
     required: true,
   },
