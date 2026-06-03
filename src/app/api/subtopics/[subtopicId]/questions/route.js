@@ -83,9 +83,29 @@ export async function POST(req, { params }) {
     const { subtopicId } = params;
     const data = await req.json();
 
+    const qText = (data.questionText || data.question || '').trim();
+
+    // Check if question already exists in this subtopic
+    const existing = await Question.findOne({
+      subtopicId,
+      questionText: { $regex: new RegExp(`^${qText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }
+    });
+
+    if (existing) {
+      return NextResponse.json({
+        ...existing.toObject(),
+        id: existing._id.toString(),
+        $id: existing._id.toString(),
+        question: existing.questionText,
+        correctIndex: existing.correctOption,
+        difficulty: existing.difficulty,
+        alreadyExisted: true
+      }, { status: 200 });
+    }
+
     const questionData = {
       subtopicId,
-      questionText: data.questionText || data.question,
+      questionText: qText,
       options: data.options,
       correctOption: data.correctOption !== undefined ? data.correctOption : data.correctIndex,
       explanation: data.explanation,

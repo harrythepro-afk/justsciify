@@ -197,7 +197,14 @@ Return ONLY valid JSON. Output must start with { and end with }. Do not include 
 
         // 3. Create Questions linked to this Subtopic
         if (s.questions && Array.isArray(s.questions)) {
+          const uniqueQuestionTexts = new Set();
           for (const q of s.questions) {
+            const normalizedText = (q.question || '').trim().toLowerCase();
+            if (uniqueQuestionTexts.has(normalizedText)) {
+              continue; // skip duplicate question in the same subtopic!
+            }
+            uniqueQuestionTexts.add(normalizedText);
+
             await Question.create({
               subtopicId: subtopic._id,
               questionText: q.question,

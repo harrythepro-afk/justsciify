@@ -83,6 +83,9 @@ function AdminContent() {
   const [questionsPerSubtopic, setQuestionsPerSubtopic] = useState(3);
   const [generatedSyllabus, setGeneratedSyllabus] = useState(null);
   const [savingSyllabus, setSavingSyllabus] = useState(false);
+  const [selectedQuestionsIndices, setSelectedQuestionsIndices] = useState([]);
+  const [selectedSyllabusQuestions, setSelectedSyllabusQuestions] = useState({});
+  const [existingQuestionsInSubtopic, setExistingQuestionsInSubtopic] = useState([]);
 
   // NEW Subtopics Manager States
   const [expandedTopicId, setExpandedTopicId] = useState(null);
@@ -146,6 +149,57 @@ function AdminContent() {
       }
     })();
   }, [selectedTopicId]);
+
+  // Load existing questions for active subtopic to check for duplicates
+  useEffect(() => {
+    if (!selectedSubtopicId) {
+      setExistingQuestionsInSubtopic([]);
+      return;
+    }
+    (async () => {
+      try {
+        const qData = await getQuestionsByTopic(selectedSubtopicId);
+        setExistingQuestionsInSubtopic(qData);
+      } catch (err) {
+        console.error('Failed to load subtopic questions:', err);
+      }
+    })();
+  }, [selectedSubtopicId]);
+
+  // Auto-select booster questions by default (excluding existing duplicates)
+  useEffect(() => {
+    if (generatedQuestions && generatedQuestions.length > 0) {
+      const initialSelected = [];
+      generatedQuestions.forEach((q, idx) => {
+        const duplicate = existingQuestionsInSubtopic.some(
+          (eq) => eq.question.trim().toLowerCase() === q.question.trim().toLowerCase()
+        );
+        if (!duplicate) {
+          initialSelected.push(idx);
+        }
+      });
+      setSelectedQuestionsIndices(initialSelected);
+    } else {
+      setSelectedQuestionsIndices([]);
+    }
+  }, [generatedQuestions, existingQuestionsInSubtopic]);
+
+  // Auto-select syllabus questions by default
+  useEffect(() => {
+    if (generatedSyllabus && generatedSyllabus.subtopics) {
+      const initial = {};
+      generatedSyllabus.subtopics.forEach((sub, sIdx) => {
+        if (sub.questions) {
+          sub.questions.forEach((_, qIdx) => {
+            initial[`${sIdx}-${qIdx}`] = true;
+          });
+        }
+      });
+      setSelectedSyllabusQuestions(initial);
+    } else {
+      setSelectedSyllabusQuestions({});
+    }
+  }, [generatedSyllabus]);
 
   if (!profile || profile.email !== 'admin@justsciify.com') {
     return (
@@ -308,17 +362,43 @@ function AdminContent() {
   // Bulk Save AI Generated Questions into Appwrite Database
   const handleBulkSaveAI = async () => {
     setSaveAllProgress('saving');
+    let savedCount = 0;
+    let skippedCount = 0;
     try {
-      for (const q of generatedQuestions) {
-        await createQuestion(q);
+      const selectedQuestions = generatedQuestions.filter((_, idx) => selectedQuestionsIndices.includes(idx));
+      
+      if (selectedQuestions.length === 0) {
+        alert('Please select at least one question to save.');
+        setSaveAllProgress(null);
+        return;
+      }
+
+      for (const q of selectedQuestions) {
+        const res = await createQuestion(q);
+        if (res.alreadyExisted) {
+          skippedCount++;
+        } else {
+          savedCount++;
+        }
       }
       // Re-fetch questions list
       const qList = await getQuestionsByTopic(selectedTopicId);
       setQuestions(qList);
 
+      // Re-fetch subtopic questions to refresh duplicate checkers
+      if (selectedSubtopicId) {
+        const subtopicQs = await getQuestionsByTopic(selectedSubtopicId);
+        setExistingQuestionsInSubtopic(subtopicQs);
+      }
+
       setGeneratedQuestions([]);
       setSaveAllProgress('done');
-      alert(`🎉 Bulk Save complete! Successfully created ${generatedQuestions.length} questions inside MongoDB database.`);
+      
+      let message = `🎉 Success! Created ${savedCount} new questions.`;
+      if (skippedCount > 0) {
+        message += ` Skipped ${skippedCount} duplicate question(s) that already existed.`;
+      }
+      alert(message);
     } catch (err) {
       console.error('Failed bulk saving questions:', err);
       setSaveAllProgress('error');
@@ -427,12 +507,26 @@ function AdminContent() {
     if (!generatedSyllabus) return;
     setSavingSyllabus(true);
     try {
+      // Filter questions based on checkboxes
+      const filteredSubtopics = generatedSyllabus.subtopics.map((sub, sIdx) => {
+        const filteredQs = (sub.questions || []).filter((_, qIdx) => selectedSyllabusQuestions[`${sIdx}-${qIdx}`]);
+        return {
+          ...sub,
+          questions: filteredQs
+        };
+      });
+
+      const filteredSyllabus = {
+        ...generatedSyllabus,
+        subtopics: filteredSubtopics
+      };
+
       const res = await fetch('/api/admin/generate-topic', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'save',
-          topicData: generatedSyllabus
+          topicData: filteredSyllabus
         })
       });
       const data = await res.json();
@@ -949,12 +1043,26 @@ function AdminContent() {
                             </div>
                           </div>
                           <p className="font-display font-bold text-white text-xs md:text-sm mb-3 leading-snug">{q.question}</p>
-                          <div className="grid grid-cols-2 gap-2 mb-3 text-[11px] font-body text-slate-500">
-                            {q.options.map((opt, i) => (
-                              <div key={i} className={i === q.correctIndex ? 'text-green-400 font-bold' : ''}>
-                                {['A', 'B', 'C', 'D'][i]}) {opt} {i === q.correctIndex ? '✓' : ''}
-                              </div>
-                            ))}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3 font-body text-[11px]">
+                            {q.options.map((opt, i) => {
+                              const isCorrect = i === q.correctIndex;
+                              return (
+                                <div 
+                                  key={i} 
+                                  className={`p-2 py-1.5 rounded-lg border flex items-center gap-1.5 ${
+                                    isCorrect 
+                                      ? 'border-green-500/30 bg-green-500/5 text-green-400 font-bold' 
+                                      : 'border-white/5 bg-slate-950/40 text-slate-200'
+                                  }`}
+                                >
+                                  <span className={`font-bold uppercase ${isCorrect ? 'text-green-400' : 'text-slate-500'}`}>
+                                    {['A', 'B', 'C', 'D'][i]})
+                                  </span>
+                                  <span>{opt}</span>
+                                  {isCorrect && <span className="ml-auto text-green-400 font-bold">✓</span>}
+                                </div>
+                              );
+                            })}
                           </div>
                           <p className="font-body text-slate-400 text-[10px] md:text-xs leading-relaxed pt-2.5 border-t border-white/5">
                             💡 <span className="font-bold text-slate-500 uppercase tracking-wide">Fun Fact:</span> {q.explanation}
@@ -1124,24 +1232,66 @@ function AdminContent() {
                                 </div>
 
                                 <div className="space-y-3">
-                                  {sub.questions?.map((q, qIdx) => (
-                                    <div key={qIdx} className="bg-slate-950/40 p-4 rounded-xl border border-white/5">
-                                      <div className="flex justify-between items-center mb-2">
-                                        <span className="font-display font-black text-[9px] text-slate-500">QUESTION {qIdx + 1} • DIFFICULTY {q.difficulty}/10</span>
-                                      </div>
-                                      <p className="font-display font-bold text-white text-xs mb-3">{q.question}</p>
-                                      <div className="grid grid-cols-2 gap-2 mb-3 text-[10px] font-body text-slate-400">
-                                        {q.options.map((opt, oIdx) => (
-                                          <div key={oIdx} className={oIdx === q.correctIndex ? 'text-green-400 font-bold' : ''}>
-                                            {['A', 'B', 'C', 'D'][oIdx]}) {opt} {oIdx === q.correctIndex ? '✓' : ''}
+                                  {sub.questions?.map((q, qIdx) => {
+                                    const key = `${sIdx}-${qIdx}`;
+                                    const isChecked = !!selectedSyllabusQuestions[key];
+                                    const isDuplicate = sub.questions.slice(0, qIdx).some(
+                                      (prevQ) => prevQ.question.trim().toLowerCase() === q.question.trim().toLowerCase()
+                                    );
+
+                                    return (
+                                      <div key={qIdx} className="bg-slate-950/40 p-4 rounded-xl border transition-all duration-200"
+                                        style={{ 
+                                          borderColor: isChecked ? 'rgba(249, 115, 22, 0.2)' : 'rgba(255,255,255,0.03)',
+                                          opacity: isChecked ? 1 : 0.5 
+                                        }}>
+                                        <div className="flex justify-between items-center mb-2">
+                                          <div className="flex items-center gap-2">
+                                            <input
+                                              type="checkbox"
+                                              checked={isChecked}
+                                              onChange={(e) => setSelectedSyllabusQuestions({
+                                                ...selectedSyllabusQuestions,
+                                                [key]: e.target.checked
+                                              })}
+                                              className="w-3.5 h-3.5 rounded border-white/10 bg-slate-950 text-orange-500 focus:ring-0 focus:ring-offset-0 cursor-pointer"
+                                            />
+                                            <span className="font-display font-black text-[9px] text-slate-500">QUESTION {qIdx + 1} • DIFFICULTY {q.difficulty}/10</span>
                                           </div>
-                                        ))}
+                                          {isDuplicate && (
+                                            <span className="bg-red-500/15 border border-red-500/30 text-red-400 font-display font-bold text-[8px] uppercase px-2 py-0.5 rounded-full animate-pulse">
+                                              ⚠️ Duplicate
+                                            </span>
+                                          )}
+                                        </div>
+                                        <p className="font-display font-bold text-white text-xs mb-3">{q.question}</p>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3 font-body text-[10px]">
+                                          {q.options.map((opt, oIdx) => {
+                                            const isCorrect = oIdx === q.correctIndex;
+                                            return (
+                                              <div 
+                                                key={oIdx} 
+                                                className={`p-2 py-1.5 rounded-lg border flex items-center gap-1.5 ${
+                                                  isCorrect 
+                                                    ? 'border-green-500/30 bg-green-500/5 text-green-400 font-bold' 
+                                                    : 'border-white/5 bg-slate-950/40 text-slate-200'
+                                                }`}
+                                              >
+                                                <span className={`font-bold uppercase ${isCorrect ? 'text-green-400' : 'text-slate-500'}`}>
+                                                  {['A', 'B', 'C', 'D'][oIdx]})
+                                                </span>
+                                                <span>{opt}</span>
+                                                {isCorrect && <span className="ml-auto text-green-400 font-bold">✓</span>}
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                        <p className="font-body text-slate-400 text-[10px] pt-2 border-t border-white/5">
+                                          💡 <span className="font-bold text-slate-500">Fun Fact:</span> {q.explanation}
+                                        </p>
                                       </div>
-                                      <p className="font-body text-slate-400 text-[10px] pt-2 border-t border-white/5">
-                                        💡 <span className="font-bold text-slate-500">Fun Fact:</span> {q.explanation}
-                                      </p>
-                                    </div>
-                                  ))}
+                                    );
+                                  })}
                                 </div>
                               </div>
                             ))}
@@ -1272,25 +1422,69 @@ function AdminContent() {
                         </div>
                       ) : (
                         <div className="space-y-3 animate-fade-in">
-                          {generatedQuestions.map((q, idx) => (
-                            <div key={idx} className="sci-card p-5 bg-slate-900/40 border-orange-500/20 relative overflow-hidden">
-                              <div className="absolute top-0 left-0 w-1 h-full bg-orange-500" />
-                              <div className="flex justify-between items-start mb-2">
-                                <span className="font-display font-black text-[10px] text-orange-400">Class {q.classNum} • DIFFICULTY: LEVEL {q.difficulty} / 10</span>
-                              </div>
-                              <p className="font-display font-bold text-white text-xs md:text-sm mb-3">{q.question}</p>
-                              <div className="grid grid-cols-2 gap-2 text-[11px] font-body text-slate-500 mb-3">
-                                {q.options.map((opt, i) => (
-                                  <div key={i} className={i === q.correctIndex ? 'text-green-400 font-bold' : ''}>
-                                    {['A', 'B', 'C', 'D'][i]}) {opt} {i === q.correctIndex ? '✓' : ''}
+                          {generatedQuestions.map((q, idx) => {
+                            const isChecked = selectedQuestionsIndices.includes(idx);
+                            const isDuplicate = existingQuestionsInSubtopic.some(
+                              (eq) => eq.question.trim().toLowerCase() === q.question.trim().toLowerCase()
+                            );
+
+                            return (
+                              <div key={idx} className="sci-card p-5 bg-slate-900/40 relative overflow-hidden transition-all duration-200"
+                                style={{ 
+                                  borderColor: isChecked ? 'rgba(249, 115, 22, 0.3)' : 'rgba(255,255,255,0.06)',
+                                  opacity: isChecked ? 1 : 0.5 
+                                }}>
+                                <div className="absolute top-0 left-0 w-1 h-full bg-orange-500" />
+                                <div className="flex justify-between items-center mb-2">
+                                  <div className="flex items-center gap-2">
+                                    <input
+                                      type="checkbox"
+                                      checked={isChecked}
+                                      onChange={(e) => {
+                                        if (e.target.checked) {
+                                          setSelectedQuestionsIndices([...selectedQuestionsIndices, idx]);
+                                        } else {
+                                          setSelectedQuestionsIndices(selectedQuestionsIndices.filter(i => i !== idx));
+                                        }
+                                      }}
+                                      className="w-4 h-4 rounded border-white/10 bg-slate-950 text-orange-500 focus:ring-0 focus:ring-offset-0 cursor-pointer"
+                                    />
+                                    <span className="font-display font-black text-[10px] text-orange-400">Class {q.classNum} • DIFFICULTY: LEVEL {q.difficulty} / 10</span>
                                   </div>
-                                ))}
+                                  {isDuplicate && (
+                                    <span className="bg-red-500/15 border border-red-500/30 text-red-400 font-display font-bold text-[8px] uppercase px-2.5 py-0.5 rounded-full animate-pulse">
+                                      ⚠️ Already on Site
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="font-display font-bold text-white text-xs md:text-sm mb-3">{q.question}</p>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3 font-body text-[11px]">
+                                  {q.options.map((opt, i) => {
+                                    const isCorrect = i === q.correctIndex;
+                                    return (
+                                      <div 
+                                        key={i} 
+                                        className={`p-2 py-1.5 rounded-lg border flex items-center gap-1.5 ${
+                                          isCorrect 
+                                            ? 'border-green-500/30 bg-green-500/5 text-green-400 font-bold' 
+                                            : 'border-white/5 bg-slate-950/40 text-slate-200'
+                                        }`}
+                                      >
+                                        <span className={`font-bold uppercase ${isCorrect ? 'text-green-400' : 'text-slate-500'}`}>
+                                          {['A', 'B', 'C', 'D'][i]})
+                                        </span>
+                                        <span>{opt}</span>
+                                        {isCorrect && <span className="ml-auto text-green-400 font-bold">✓</span>}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                                <p className="font-body text-slate-400 text-[10px] md:text-xs leading-relaxed pt-2.5 border-t border-white/5">
+                                  💡 <span className="font-bold text-slate-500 uppercase">AI Explanation:</span> {q.explanation}
+                                </p>
                               </div>
-                              <p className="font-body text-slate-400 text-[10px] md:text-xs leading-relaxed pt-2.5 border-t border-white/5">
-                                💡 <span className="font-bold text-slate-500 uppercase">AI Explanation:</span> {q.explanation}
-                              </p>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       )}
                     </div>
