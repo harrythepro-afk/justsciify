@@ -22,6 +22,11 @@ function ResultsContent() {
   const score = parseInt(searchParams.get('score') || '0');
   const total = parseInt(searchParams.get('total') || '4');
   const xpEarned = parseInt(searchParams.get('xp') || '0');
+  const duration = parseInt(searchParams.get('duration') || '0');
+
+  const minutes = Math.floor(duration / 60);
+  const seconds = duration % 60;
+  const timeStr = minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
 
   const percentage = Math.round((score / total) * 100);
 
@@ -76,9 +81,17 @@ function ResultsContent() {
         </div>
 
         <p className="font-display font-bold text-white text-sm mb-2">{message}</p>
-        <p className="font-body text-slate-400 text-xs max-w-xs mx-auto mb-8 leading-relaxed">
+        <p className="font-body text-slate-400 text-xs max-w-xs mx-auto mb-6 leading-relaxed">
           You earned a total of <span className="font-display font-black text-yellow-400 text-sm">+{xpEarned} XP</span> which has been added to your profile!
         </p>
+
+        {duration > 0 && (
+          <div className="flex items-center justify-center gap-2 mb-8 bg-white/5 border border-white/5 py-2 px-4 rounded-xl w-fit mx-auto">
+            <span className="text-sm">⏱️</span>
+            <span className="font-display font-bold text-[10px] uppercase text-slate-500 tracking-wider">Completion Time:</span>
+            <span className="font-display font-black text-xs text-sky-400">{timeStr}</span>
+          </div>
+        )}
 
         {/* User level details */}
         {profile && (
@@ -114,7 +127,11 @@ function ResultsContent() {
               </button>
             </Link>
             <button
-              onClick={() => router.push(`/quiz?topicId=${searchParams.get('topicId') || 't_living_things'}`)}
+              onClick={() => {
+                const tId = searchParams.get('topicId') || 't_living_things';
+                const sId = searchParams.get('subtopicId');
+                router.push(`/quiz?topicId=${tId}${sId ? `&subtopicId=${sId}` : ''}`);
+              }}
               className="w-full btn-secondary py-3.5 rounded-xl font-display font-bold text-xs text-white hover:bg-white/10"
               style={{ background: 'rgba(255,255,255,0.04)' }}
             >

@@ -6,11 +6,11 @@ import AuthGuard from '@/components/AuthGuard';
 import { updateUserProfile } from '@/lib/db';
 
 const SHOP_ITEMS = [
-  { id: 'avatar_astro_boy', name: 'Astro Cadet', type: 'avatar', emoji: '🧑‍🚀', cost: 50, color: '#38bdf8', desc: 'Sleek neon explorer suit for beginner science scouts.' },
-  { id: 'avatar_cyber_cyborg', name: 'Cybernetic Sage', type: 'avatar', emoji: '🤖', cost: 100, color: '#a855f7', desc: 'Chrome titanium shell equipped with advanced sensory logs.' },
-  { id: 'avatar_alien_xenon', name: 'Xenon Lifeform', type: 'avatar', emoji: '👽', cost: 150, color: '#4ade80', desc: 'Bio-luminescent cosmic explorer visiting from the Andromeda galaxy.' },
-  { id: 'avatar_solar_lord', name: 'Solar Monarch', type: 'avatar', emoji: '👑', cost: 250, color: '#facc15', desc: 'Equipped with solar radiation protection and plasma shielding.' },
-  { id: 'avatar_blackhole_mage', name: 'Blackhole Wizard', type: 'avatar', emoji: '🌌', cost: 400, color: '#f87171', desc: 'Control gravity fields with the absolute ultimate cosmic explorer tier.' },
+  { id: 'avatar_astro_boy', name: 'Astro Cadet', type: 'avatar', emoji: '🧑‍🚀', cost: 50, color: '#94a3b8', desc: 'Sleek neon explorer suit for beginner science scouts.', rarity: 'COMMON' },
+  { id: 'avatar_cyber_cyborg', name: 'Cybernetic Sage', type: 'avatar', emoji: '🤖', cost: 100, color: '#38bdf8', desc: 'Chrome titanium shell equipped with advanced sensory logs.', rarity: 'RARE' },
+  { id: 'avatar_alien_xenon', name: 'Xenon Lifeform', type: 'avatar', emoji: '👽', cost: 150, color: '#a855f7', desc: 'Bio-luminescent cosmic explorer visiting from the Andromeda galaxy.', rarity: 'EPIC' },
+  { id: 'avatar_solar_lord', name: 'Solar Monarch', type: 'avatar', emoji: '👑', cost: 250, color: '#facc15', desc: 'Equipped with solar radiation protection and plasma shielding.', rarity: 'LEGENDARY' },
+  { id: 'avatar_blackhole_mage', name: 'Blackhole Wizard', type: 'avatar', emoji: '🌌', cost: 400, color: '#f87171', desc: 'Control gravity fields with the absolute ultimate cosmic explorer tier.', rarity: 'MYTHIC' },
 ];
 
 function ShopContent() {
@@ -30,20 +30,22 @@ function ShopContent() {
 
     setBuyingId(item.id);
     try {
-      const updatedUnlocked = [...unlocked, item.id];
-      const newXP = profile.xp - item.cost;
-
-      // Update database profile
-      await updateUserProfile(user.$id, {
-        xp: newXP,
-        unlockedAvatars: updatedUnlocked,
-        avatarId: item.id // Auto-equip on purchase
+      const res = await fetch('/api/shop/purchase', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ itemId: item.id }),
       });
+      
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to complete transaction');
+      }
 
       await refreshProfile();
       alert(`🎉 Successfully unlocked and equipped: ${item.name}!`);
     } catch (err) {
       console.error('Failed to buy item:', err);
+      alert('❌ Purchase failed: ' + err.message);
     } finally {
       setBuyingId(null);
     }
@@ -108,12 +110,12 @@ function ShopContent() {
           <div
             className="sci-card p-6 flex flex-col justify-between relative"
             style={{
-              borderColor: currentEquipped === 'explorer_default' ? '#38bdf8' : 'rgba(255,255,255,0.06)',
+              borderColor: currentEquipped === 'explorer_default' ? '#94a3b8' : 'rgba(255,255,255,0.06)',
               background: 'rgba(11, 18, 37, 0.7)'
             }}
           >
             {currentEquipped === 'explorer_default' && (
-              <span className="absolute top-4 right-4 bg-sky-500/10 border border-sky-500/30 text-sky-400 font-display font-bold text-[8px] uppercase px-2 py-0.5 rounded-full">
+              <span className="absolute top-4 right-4 bg-slate-500/10 border border-slate-500/30 text-slate-400 font-display font-bold text-[8px] uppercase px-2 py-0.5 rounded-full">
                 Equipped
               </span>
             )}
@@ -121,7 +123,13 @@ function ShopContent() {
               <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl mb-6 bg-white/5 border border-white/10">
                 🧑‍🔬
               </div>
-              <h3 className="font-display font-black text-base text-white mb-1">Default Intern</h3>
+              <div className="flex items-center gap-2 mb-1 flex-wrap">
+                <h3 className="font-display font-black text-base text-white">Default Intern</h3>
+                <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[8px] font-bold tracking-wider uppercase border border-slate-500/30 bg-slate-500/10 text-slate-400"
+                  style={{ boxShadow: '0 0 8px rgba(148, 163, 184, 0.1)' }}>
+                  ⚙️ BASE
+                </span>
+              </div>
               <span className="font-body font-bold text-[10px] text-slate-500">FREE BASE UNLOCK</span>
               <p className="font-body text-slate-400 text-xs mt-3 leading-relaxed">
                 Your reliable rookie lab coat. Always ready to perform baseline concept science reviews.
@@ -168,7 +176,18 @@ function ShopContent() {
                     style={{ background: `${item.color}15`, border: `1px solid ${item.color}30` }}>
                     {item.emoji}
                   </div>
-                  <h3 className="font-display font-black text-base text-white mb-1">{item.name}</h3>
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                    <h3 className="font-display font-black text-base text-white">{item.name}</h3>
+                    <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[8px] font-black tracking-wider uppercase border"
+                      style={{
+                        color: item.color,
+                        borderColor: `${item.color}30`,
+                        background: `${item.color}10`,
+                        boxShadow: `0 0 8px ${item.color}15`
+                      }}>
+                      ✨ {item.rarity}
+                    </span>
+                  </div>
                   <span className="font-display font-bold text-[10px]" style={{ color: item.color }}>
                     {isUnlocked ? 'UNLOCKED' : `COST: ${item.cost} XP`}
                   </span>

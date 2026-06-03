@@ -23,6 +23,10 @@ const QuizResultSchema = new mongoose.Schema({
     type: Number,
     required: true,
   },
+  duration: {
+    type: Number,
+    default: 0,
+  },
   date: {
     type: Date,
     default: Date.now,

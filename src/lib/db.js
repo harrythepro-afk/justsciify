@@ -149,11 +149,11 @@ export async function getQuestions(subtopicId, limit = 10) {
 
 // ─── Quiz Results ─────────────────────────────────────────────────────────────
 
-export async function saveQuizResult(userId, subtopicId, score, total, xpEarned) {
+export async function saveQuizResult(userId, subtopicId, score, total, xpEarned, duration = 0) {
   const data = await fetch('/api/quiz/results', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ subtopicId, score, total, xpEarned }),
+    body: JSON.stringify({ subtopicId, score, total, xpEarned, duration }),
   }).then(handleResponse);
 
   return data.result;
@@ -175,7 +175,7 @@ export async function getLeaderboard(limit = 10) {
 
 export async function getAllUsers(limit = 100) {
   const data = await fetch(`/api/leaderboard?limit=${limit}`).then(handleResponse);
-  return data;
+  return data.users;
 }
 
 export async function getAllTopics() {
@@ -233,5 +233,27 @@ export async function getQuestionsByTopic(subtopicId) {
 
 export async function getAllQuizResults(limit = 100) {
   return getUserResults(null, limit);
+}
+
+export async function createSubtopic(data) {
+  return fetch('/api/subtopics', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  }).then(handleResponse);
+}
+
+export async function updateSubtopic(subtopicId, data) {
+  return fetch(`/api/subtopics/${subtopicId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  }).then(handleResponse);
+}
+
+export async function deleteSubtopic(subtopicId) {
+  return fetch(`/api/subtopics/${subtopicId}`, {
+    method: 'DELETE',
+  }).then(handleResponse);
 }
 

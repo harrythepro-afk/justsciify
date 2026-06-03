@@ -32,8 +32,8 @@ function QuizContent() {
   const [saving, setSaving] = useState(false);
 
   // Timer state
-  const [timeLeft, setTimeLeft] = useState(30);
-  const timerRef = useRef(null);
+  const [startTime] = useState(Date.now());
+  const [elapsedTime, setElapsedTime] = useState(0);
 
   // Load data
   useEffect(() => {
@@ -90,29 +90,14 @@ function QuizContent() {
     })();
   }, [topicId, subtopicId, router]);
 
-  // Start question timer
+  // Track global elapsed time
   useEffect(() => {
-    if (loading || !currentQuestion || isAnswered || saving) return;
-
-    setTimeLeft(30);
-    timerRef.current = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) {
-          clearInterval(timerRef.current);
-          handleTimeOut();
-          return 0;
-        }
-        return prev - 1;
-      });
+    if (loading || saving) return;
+    const interval = setInterval(() => {
+      setElapsedTime(Math.round((Date.now() - startTime) / 1000));
     }, 1000);
-
-    return () => clearInterval(timerRef.current);
-  }, [currentQuestion, loading, isAnswered, saving]);
-
-  const handleTimeOut = () => {
-    setSelectedOpt(null);
-    setIsAnswered(true);
-  };
+    return () => clearInterval(interval);
+  }, [loading, saving, startTime]);
 
   const handleSelectOption = (idx) => {
     if (isAnswered) return;
@@ -121,7 +106,6 @@ function QuizContent() {
 
   const handleConfirmAnswer = () => {
     if (selectedOpt === null || isAnswered) return;
-    clearInterval(timerRef.current);
 
     const correct = currentQuestion.correctIndex === selectedOpt;
     if (correct) {
@@ -180,15 +164,16 @@ function QuizContent() {
     setSaving(true);
     try {
       const activeId = subtopicId || topic.$id;
+      const duration = Math.round((Date.now() - startTime) / 1000);
       // Save quiz result
-      await saveQuizResult(user.$id, activeId, score, questionsCount, xpEarned);
+      await saveQuizResult(user.$id, activeId, score, questionsCount, xpEarned, duration);
       // Add XP and update belt levels
       await addXP(user.$id, profile.xp, xpEarned, activeId, profile.completedTopics);
       // Refresh AuthContext profile details
       await refreshProfile();
       // Redirect to results
       const quizTitle = subtopic ? `${topic.title} (${subtopic.title})` : topic.title;
-      router.push(`/results?topicTitle=${encodeURIComponent(quizTitle)}&score=${score}&total=${questionsCount}&xp=${xpEarned}`);
+      router.push(`/results?topicTitle=${encodeURIComponent(quizTitle)}&score=${score}&total=${questionsCount}&xp=${xpEarned}&duration=${duration}&topicId=${topicId}`);
     } catch (err) {
       console.error('Error saving quiz results:', err);
       router.push('/dashboard');
@@ -267,12 +252,12 @@ function QuizContent() {
               </span>
             </div>
 
-            {/* Circular Timer Widget */}
-            <div className="flex items-center gap-2">
+            {/* Global Timer Widget */}
+            <div className="flex items-center gap-2 bg-white/5 px-3 py-1.5 rounded-xl border border-white/5">
               <span className="text-sm">⏱️</span>
-              <span className="font-display font-black text-sm transition-colors"
-                style={{ color: timeLeft < 10 ? '#f87171' : '#facc15' }}>
-                {timeLeft}s
+              <span className="font-display font-bold text-[10px] uppercase text-slate-400">Time Spent:</span>
+              <span className="font-display font-black text-xs text-yellow-400">
+                {Math.floor(elapsedTime / 60)}m {elapsedTime % 60}s
               </span>
             </div>
           </div>

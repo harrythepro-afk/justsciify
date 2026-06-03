@@ -14,7 +14,10 @@ import {
   createQuestion,
   updateQuestion,
   deleteQuestion,
-  getAllQuizResults
+  getAllQuizResults,
+  createSubtopic,
+  updateSubtopic,
+  deleteSubtopic
 } from '@/lib/db';
 
 const MOCK_AI_BANK = {
@@ -57,6 +60,7 @@ function AdminContent() {
 
   // Filters & Form States
   const [selectedTopicId, setSelectedTopicId] = useState('');
+  const [selectedSubtopicId, setSelectedSubtopicId] = useState('');
   const [editingTopic, setEditingTopic] = useState(null);
   const [editingQuestion, setEditingQuestion] = useState(null);
 
@@ -70,6 +74,21 @@ function AdminContent() {
   const [aiGenerating, setAiGenerating] = useState(false);
   const [generatedQuestions, setGeneratedQuestions] = useState([]);
   const [saveAllProgress, setSaveAllProgress] = useState(null);
+  const [aiProvider, setAiProvider] = useState('groq'); // 'groq' | 'openai'
+
+  // NEW AI Generator States
+  const [aiTab, setAiTab] = useState('syllabus'); // 'syllabus' | 'questions'
+  const [topicQuery, setTopicQuery] = useState('');
+  const [classGradeSyllabus, setClassGradeSyllabus] = useState(4);
+  const [questionsPerSubtopic, setQuestionsPerSubtopic] = useState(3);
+  const [generatedSyllabus, setGeneratedSyllabus] = useState(null);
+  const [savingSyllabus, setSavingSyllabus] = useState(false);
+
+  // NEW Subtopics Manager States
+  const [expandedTopicId, setExpandedTopicId] = useState(null);
+  const [subtopicForm, setSubtopicForm] = useState({ title: '', description: '', order: 1 });
+  const [editingSubtopic, setEditingSubtopic] = useState(null);
+  const [savingSubtopic, setSavingSubtopic] = useState(false);
 
   useEffect(() => {
     if (!profile) return;
@@ -90,7 +109,11 @@ function AdminContent() {
         setTopics(tData);
         setResults(rData);
         if (tData.length > 0) {
-          setSelectedTopicId(tData[0].$id);
+          const firstTopic = tData[0];
+          setSelectedTopicId(firstTopic.$id);
+          if (firstTopic.subtopics && firstTopic.subtopics.length > 0) {
+            setSelectedSubtopicId(firstTopic.subtopics[0].$id || firstTopic.subtopics[0].id);
+          }
         }
       } catch (err) {
         console.error('Failed to load admin data:', err);
@@ -99,6 +122,17 @@ function AdminContent() {
       }
     })();
   }, [profile, router]);
+
+  // Sync selectedSubtopicId when selectedTopicId changes
+  useEffect(() => {
+    if (!selectedTopicId || topics.length === 0) return;
+    const activeTopic = topics.find(t => t.$id === selectedTopicId || t.id === selectedTopicId);
+    if (activeTopic && activeTopic.subtopics && activeTopic.subtopics.length > 0) {
+      setSelectedSubtopicId(activeTopic.subtopics[0].$id || activeTopic.subtopics[0].id);
+    } else {
+      setSelectedSubtopicId('');
+    }
+  }, [selectedTopicId, topics]);
 
   // Load questions when selected topic changes
   useEffect(() => {
@@ -221,32 +255,54 @@ function AdminContent() {
     }
   };
 
-  // 🤖 AI Question Generation Streaming Simulation
-  const handleAIGenerate = () => {
+  // 🤖 AI Question Generation Real API Integration
+  const handleAIGenerate = async () => {
     setAiGenerating(true);
     setGeneratedQuestions([]);
     setSaveAllProgress(null);
 
-    const activeTopic = topics.find(t => t.$id === selectedTopicId);
-    const sourceList = MOCK_AI_BANK[selectedTopicId] || MOCK_AI_BANK['t_living_things'];
+    const activeTopic = topics.find(t => t.$id === selectedTopicId || t.id === selectedTopicId);
+    if (!activeTopic) {
+      alert('Please select a valid topic first.');
+      setAiGenerating(false);
+      return;
+    }
 
-    // Select the requested number of questions
-    const pool = sourceList.slice(0, aiCount).map((q) => ({
-      ...q,
-      topicId: selectedTopicId,
-      classNum: activeTopic ? activeTopic.classNum : 4
-    }));
+    const activeSubtopics = activeTopic.subtopics || [];
+    const activeSubtopic = activeSubtopics.find(s => s.$id === selectedSubtopicId || s.id === selectedSubtopicId);
+    if (!activeSubtopic) {
+      alert('Please select a valid subtopic first.');
+      setAiGenerating(false);
+      return;
+    }
 
-    let currentStreamIdx = 0;
-    const interval = setInterval(() => {
-      if (currentStreamIdx < pool.length) {
-        setGeneratedQuestions((prev) => [...prev, pool[currentStreamIdx]]);
-        currentStreamIdx++;
-      } else {
-        clearInterval(interval);
-        setAiGenerating(false);
+    try {
+      const res = await fetch('/api/admin/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          topicId: selectedTopicId,
+          subtopicId: selectedSubtopicId,
+          topicTitle: activeTopic.title,
+          subtopicTitle: activeSubtopic.title,
+          classNum: activeTopic.classNum,
+          count: aiCount,
+          provider: aiProvider
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to generate questions');
       }
-    }, 900); // Stream a question every 900ms
+
+      setGeneratedQuestions(data.questions);
+    } catch (err) {
+      console.error('Failed generating questions:', err);
+      alert('❌ AI Generation failed: ' + err.message);
+    } finally {
+      setAiGenerating(false);
+    }
   };
 
   // Bulk Save AI Generated Questions into Appwrite Database
@@ -262,11 +318,140 @@ function AdminContent() {
 
       setGeneratedQuestions([]);
       setSaveAllProgress('done');
-      alert(`🎉 Bulk Save complete! Successfully created ${generatedQuestions.length} questions inside Appwrite database.`);
+      alert(`🎉 Bulk Save complete! Successfully created ${generatedQuestions.length} questions inside MongoDB database.`);
     } catch (err) {
       console.error('Failed bulk saving questions:', err);
       setSaveAllProgress('error');
       alert('Failed saving questions: ' + err.message);
+    }
+  };
+
+  // Subtopics CRUD handlers
+  const handleSaveSubtopic = async (e, topicId) => {
+    e.preventDefault();
+    setSavingSubtopic(true);
+    try {
+      if (editingSubtopic) {
+        const updated = await updateSubtopic(editingSubtopic.$id, subtopicForm);
+        setTopics(topics.map(t => {
+          if (t.$id === topicId) {
+            return {
+              ...t,
+              subtopics: t.subtopics.map(s => s.$id === editingSubtopic.$id ? updated : s)
+            };
+          }
+          return t;
+        }));
+        setEditingSubtopic(null);
+      } else {
+        const created = await createSubtopic({ ...subtopicForm, topicId });
+        setTopics(topics.map(t => {
+          if (t.$id === topicId) {
+            return {
+              ...t,
+              subtopics: [...(t.subtopics || []), created]
+            };
+          }
+          return t;
+        }));
+      }
+      setSubtopicForm({ title: '', description: '', order: (topics.find(t => t.$id === topicId)?.subtopics?.length || 0) + 1 });
+    } catch (err) {
+      alert('Error saving subtopic: ' + err.message);
+    } finally {
+      setSavingSubtopic(false);
+    }
+  };
+
+  const handleEditSubtopic = (sub) => {
+    setEditingSubtopic(sub);
+    setSubtopicForm({
+      title: sub.title,
+      description: sub.description,
+      order: sub.order
+    });
+  };
+
+  const handleDeleteSubtopic = async (topicId, subtopicId) => {
+    if (!confirm('Are you sure you want to delete this subtopic? All questions under it will be deleted!')) return;
+    try {
+      await deleteSubtopic(subtopicId);
+      setTopics(topics.map(t => {
+        if (t.$id === topicId) {
+          return {
+            ...t,
+            subtopics: t.subtopics.filter(s => s.$id !== subtopicId)
+          };
+        }
+        return t;
+      }));
+    } catch (err) {
+      alert('Error deleting subtopic: ' + err.message);
+    }
+  };
+
+  // AI Syllabus Generation Handlers
+  const handleAIGenerateSyllabus = async () => {
+    if (!topicQuery) {
+      alert('Please enter a topic idea first.');
+      return;
+    }
+    setAiGenerating(true);
+    setGeneratedSyllabus(null);
+    try {
+      const res = await fetch('/api/admin/generate-topic', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'generate',
+          topicQuery,
+          classNum: classGradeSyllabus,
+          provider: aiProvider,
+          questionCount: questionsPerSubtopic
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to generate syllabus');
+      }
+      setGeneratedSyllabus(data.topicData);
+    } catch (err) {
+      console.error('Failed generating syllabus:', err);
+      alert('❌ AI Generation failed: ' + err.message);
+    } finally {
+      setAiGenerating(false);
+    }
+  };
+
+  const handleApproveSyllabus = async () => {
+    if (!generatedSyllabus) return;
+    setSavingSyllabus(true);
+    try {
+      const res = await fetch('/api/admin/generate-topic', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'save',
+          topicData: generatedSyllabus
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to save syllabus');
+      }
+      
+      const updatedTopicsList = await getAllTopics();
+      setTopics(updatedTopicsList);
+      
+      alert('🎉 Syllabus successfully saved and published! Students can now view this topic on the website.');
+      setGeneratedSyllabus(null);
+      setTopicQuery('');
+      setActiveTab('topics');
+    } catch (err) {
+      console.error('Failed saving syllabus:', err);
+      alert('❌ Failed to save syllabus: ' + err.message);
+    } finally {
+      setSavingSyllabus(false);
     }
   };
 
@@ -294,9 +479,9 @@ function AdminContent() {
         <div className="flex gap-2 border-b border-white/5 pb-4 mb-8 overflow-x-auto">
           {[
             { id: 'stats', label: '📊 System Stats' },
-            { id: 'topics', label: '🗂️ Manage Topics' },
+            { id: 'topics', label: '🗂️ Manage Topics & Chapters' },
             { id: 'questions', label: '📝 Manage Questions' },
-            { id: 'ai_generator', label: '🧠 AI Question Generator (Coming Soon)' },
+            { id: 'ai_generator', label: '🧠 AI Content Generator' },
             { id: 'users', label: '👥 Student Directory' }
           ].map((tab) => (
             <button
@@ -460,24 +645,140 @@ function AdminContent() {
                 <div className="lg:col-span-2 space-y-3">
                   <h3 className="font-display font-bold text-white text-sm mb-4">Existing Topics ({topics.length})</h3>
                   {topics.map((t) => (
-                    <div key={t.$id} className="sci-card p-4 flex items-center justify-between gap-4" style={{ background: 'rgba(11,18,37,0.4)' }}>
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl bg-white/5" style={{ color: t.color }}>
-                          {t.icon || '📚'}
+                    <div key={t.$id} className="sci-card p-4 flex flex-col gap-4" style={{ background: 'rgba(11,18,37,0.4)' }}>
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl bg-white/5" style={{ color: t.color }}>
+                            {t.icon || '📚'}
+                          </div>
+                          <div>
+                            <div className="font-display font-bold text-white text-sm">{t.title}</div>
+                            <div className="font-body text-slate-500 text-xs mt-0.5">Grade {t.classNum} • {t.color}</div>
+                          </div>
                         </div>
-                        <div>
-                          <div className="font-display font-bold text-white text-sm">{t.title}</div>
-                          <div className="font-body text-slate-500 text-xs mt-0.5">Grade {t.classNum} • {t.color}</div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => {
+                              if (expandedTopicId === t.$id) {
+                                setExpandedTopicId(null);
+                              } else {
+                                setExpandedTopicId(t.$id);
+                                setEditingSubtopic(null);
+                                setSubtopicForm({ title: '', description: '', order: (t.subtopics?.length || 0) + 1 });
+                              }
+                            }}
+                            className="text-sky-400 hover:text-white font-body text-xs px-3 py-1.5 bg-sky-500/10 border border-sky-500/20 rounded-lg"
+                          >
+                            Chapters ({t.subtopics?.length || 0})
+                          </button>
+                          <button onClick={() => handleEditTopic(t)} className="text-orange-400 hover:text-white font-body text-xs px-3 py-1.5 bg-orange-500/10 border border-orange-500/20 rounded-lg">
+                            Edit
+                          </button>
+                          <button onClick={() => handleDeleteTopic(t.$id)} className="text-red-400 hover:text-white font-body text-xs px-3 py-1.5 bg-red-500/10 border border-red-500/20 rounded-lg">
+                            Delete
+                          </button>
                         </div>
                       </div>
-                      <div className="flex gap-2">
-                        <button onClick={() => handleEditTopic(t)} className="text-orange-400 hover:text-white font-body text-xs px-3 py-1.5 bg-orange-500/10 border border-orange-500/20 rounded-lg">
-                          Edit
-                        </button>
-                        <button onClick={() => handleDeleteTopic(t.$id)} className="text-red-400 hover:text-white font-body text-xs px-3 py-1.5 bg-red-500/10 border border-red-500/20 rounded-lg">
-                          Delete
-                        </button>
-                      </div>
+
+                      {expandedTopicId === t.$id && (
+                        <div className="mt-2 pt-4 border-t border-white/5 space-y-4">
+                          <h4 className="font-display font-bold text-white text-xs">📖 Chapters (Subtopics) for {t.title}</h4>
+                          
+                          {/* List of subtopics */}
+                          {(!t.subtopics || t.subtopics.length === 0) ? (
+                            <p className="font-body text-slate-500 text-[11px]">No subtopics created yet. Add one below!</p>
+                          ) : (
+                            <div className="space-y-2">
+                              {t.subtopics.map((sub) => (
+                                <div key={sub.$id} className="flex justify-between items-center bg-slate-950/30 border border-white/5 rounded-xl p-3">
+                                  <div className="flex-1 min-w-0 pr-4">
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-display font-bold text-[10px] text-sky-400">Order {sub.order}</span>
+                                      <span className="font-display font-bold text-white text-xs truncate">{sub.title}</span>
+                                    </div>
+                                    <p className="font-body text-slate-400 text-[10px] mt-0.5 truncate">{sub.description}</p>
+                                  </div>
+                                  <div className="flex gap-1.5">
+                                    <button
+                                      onClick={() => handleEditSubtopic(sub)}
+                                      className="text-orange-400 hover:text-white font-body text-[10px] px-2.5 py-1 bg-orange-500/10 border border-orange-500/20 rounded-md"
+                                    >
+                                      Edit
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeleteSubtopic(t.$id, sub.$id)}
+                                      className="text-red-400 hover:text-white font-body text-[10px] px-2.5 py-1 bg-red-500/10 border border-red-500/20 rounded-md"
+                                    >
+                                      Delete
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Subtopic Add/Edit Form */}
+                          <form onSubmit={(e) => handleSaveSubtopic(e, t.$id)} className="bg-slate-950/40 p-4 rounded-xl border border-white/5 space-y-3 font-body text-xs">
+                            <span className="font-display font-bold text-[10px] text-orange-400 block font-bold">
+                              {editingSubtopic ? '✏️ Edit Chapter' : '🌱 Add New Chapter'}
+                            </span>
+                            <div className="grid grid-cols-3 gap-2">
+                              <div className="col-span-2">
+                                <input
+                                  type="text"
+                                  required
+                                  value={subtopicForm.title}
+                                  onChange={(e) => setSubtopicForm({ ...subtopicForm, title: e.target.value })}
+                                  className="w-full bg-slate-950 border border-white/10 rounded-lg p-2 text-white focus:outline-none text-[11px]"
+                                  placeholder="Chapter Title"
+                                />
+                              </div>
+                              <div>
+                                <input
+                                  type="number"
+                                  required
+                                  value={subtopicForm.order}
+                                  onChange={(e) => setSubtopicForm({ ...subtopicForm, order: parseInt(e.target.value) })}
+                                  className="w-full bg-slate-950 border border-white/10 rounded-lg p-2 text-white text-center focus:outline-none text-[11px]"
+                                  placeholder="Order"
+                                />
+                              </div>
+                            </div>
+                            <div>
+                              <textarea
+                                required
+                                rows="2"
+                                value={subtopicForm.description}
+                                onChange={(e) => setSubtopicForm({ ...subtopicForm, description: e.target.value })}
+                                className="w-full bg-slate-950 border border-white/10 rounded-lg p-2 text-white focus:outline-none resize-none text-[11px]"
+                                placeholder="Explain chapter content in one easy sentence..."
+                              />
+                            </div>
+                            <div className="flex gap-2">
+                              <button
+                                type="submit"
+                                disabled={savingSubtopic}
+                                className="flex-1 btn-primary py-2 rounded-lg text-white font-bold text-[11px]"
+                                style={{ background: 'linear-gradient(135deg, #f97316, #ea580c)' }}
+                              >
+                                {savingSubtopic ? 'Saving...' : editingSubtopic ? 'Save Chapter' : 'Add Chapter'}
+                              </button>
+                              {editingSubtopic && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingSubtopic(null);
+                                    setSubtopicForm({ title: '', description: '', order: (t.subtopics?.length || 0) + 1 });
+                                  }}
+                                  className="btn-secondary px-3 py-2 rounded-lg text-white text-[11px]"
+                                >
+                                  Cancel
+                                </button>
+                              )}
+                            </div>
+                          </form>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -666,118 +967,335 @@ function AdminContent() {
               </div>
             )}
 
-            {/* ────────── AI QUESTION GENERATOR TAB ────────── */}
+            {/* ────────── AI CONTENT GENERATOR TAB ────────── */}
             {activeTab === 'ai_generator' && (
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="space-y-6">
                 
-                {/* Configuration Console */}
-                <div className="sci-card p-6 bg-slate-900/50 h-fit relative overflow-hidden">
-                  <div className="absolute top-2 right-2 bg-orange-500/15 border border-orange-500/30 text-orange-400 font-display font-bold text-[8px] tracking-widest uppercase px-2 py-0.5 rounded-full">
-                    Simulated AI (Beta)
-                  </div>
-                  <h3 className="font-display font-bold text-white text-sm mb-4">🧠 AI Question Architect</h3>
-                  
-                  <div className="mb-4">
-                    <label className="block text-slate-500 mb-1.5 font-body text-xs font-bold font-display">Target Topic to Seed</label>
-                    <select
-                      value={selectedTopicId}
-                      onChange={(e) => setSelectedTopicId(e.target.value)}
-                      className="w-full bg-slate-950 border border-white/10 rounded-xl p-3 text-white font-body text-xs focus:outline-none"
-                    >
-                      {topics.map((t) => (
-                        <option key={t.$id} value={t.$id}>
-                          Grade {t.classNum} - {t.title}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="mb-6 font-body text-xs">
-                    <div className="flex items-center justify-between mb-1.5">
-                      <label className="text-slate-500 font-bold">Quantity to Generate</label>
-                      <span className="font-display font-bold text-orange-400">{aiCount} MCQs</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="1"
-                      max="5"
-                      value={aiCount}
-                      onChange={(e) => setAiCount(parseInt(e.target.value))}
-                      className="w-full h-1.5 bg-slate-950 rounded-lg appearance-none cursor-pointer accent-orange-500"
-                    />
-                  </div>
-
+                {/* AI sub tabs */}
+                <div className="flex gap-2 bg-slate-950/40 p-1.5 rounded-xl border border-white/5 w-fit">
                   <button
-                    onClick={handleAIGenerate}
-                    disabled={aiGenerating}
-                    className="btn-primary w-full py-3.5 rounded-xl text-white font-display font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2"
-                    style={{ background: 'linear-gradient(135deg, #f97316, #ea580c)' }}
+                    onClick={() => setAiTab('syllabus')}
+                    className={`font-display font-bold text-xs px-5 py-2.5 rounded-lg transition-all ${
+                      aiTab === 'syllabus'
+                        ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30'
+                        : 'text-slate-500 hover:text-slate-300'
+                    }`}
                   >
-                    {aiGenerating ? (
-                      <>
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        AI Architecting...
-                      </>
-                    ) : (
-                      'Generate CBSE Questions with AI 🧠'
-                    )}
+                    ✨ Syllabus Architect (Entire Topic)
+                  </button>
+                  <button
+                    onClick={() => setAiTab('questions')}
+                    className={`font-display font-bold text-xs px-5 py-2.5 rounded-lg transition-all ${
+                      aiTab === 'questions'
+                        ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30'
+                        : 'text-slate-500 hover:text-slate-300'
+                    }`}
+                  >
+                    📝 Question Booster (Existing Chapters)
                   </button>
                 </div>
 
-                {/* Question Streaming Previews Panel */}
-                <div className="lg:col-span-2 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-display font-bold text-white text-sm">AI Generated Previews ({generatedQuestions.length})</h3>
-                    {generatedQuestions.length > 0 && (
+                {aiTab === 'syllabus' ? (
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    {/* Syllabus config */}
+                    <div className="sci-card p-6 bg-slate-900/50 h-fit relative overflow-hidden">
+                      <div className="absolute top-2 right-2 bg-green-500/15 border border-green-500/30 text-green-400 font-display font-bold text-[8px] tracking-widest uppercase px-2 py-0.5 rounded-full">
+                        Gen-AI (Online)
+                      </div>
+                      <h3 className="font-display font-bold text-white text-sm mb-4">✨ Syllabus Architect</h3>
+                      
+                      <div className="mb-4 font-body text-xs">
+                        <label className="block text-slate-500 mb-1.5 font-bold">Topic Idea / Scientific Concept</label>
+                        <input
+                          type="text"
+                          required
+                          value={topicQuery}
+                          onChange={(e) => setTopicQuery(e.target.value)}
+                          className="w-full bg-slate-950 border border-white/10 rounded-xl p-3 text-white focus:outline-none"
+                          placeholder="e.g. Gravity and solar orbit"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3 mb-4 font-body text-xs">
+                        <div>
+                          <label className="block text-slate-500 mb-1.5 font-bold">Target Grade</label>
+                          <select
+                            value={classGradeSyllabus}
+                            onChange={(e) => setClassGradeSyllabus(parseInt(e.target.value))}
+                            className="w-full bg-slate-950 border border-white/10 rounded-xl p-3 text-white focus:outline-none"
+                          >
+                            <option value="3">Grade 3</option>
+                            <option value="4">Grade 4</option>
+                            <option value="5">Grade 5</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-slate-500 mb-1.5 font-bold">Questions / Chapter</label>
+                          <select
+                            value={questionsPerSubtopic}
+                            onChange={(e) => setQuestionsPerSubtopic(parseInt(e.target.value))}
+                            className="w-full bg-slate-950 border border-white/10 rounded-xl p-3 text-white focus:outline-none"
+                          >
+                            <option value="2">2 MCQs</option>
+                            <option value="3">3 MCQs</option>
+                            <option value="4">4 MCQs</option>
+                            <option value="5">5 MCQs</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="mb-6 font-body text-xs">
+                        <label className="block text-slate-500 mb-1.5 font-bold">AI Model Provider</label>
+                        <select
+                          value={aiProvider}
+                          onChange={(e) => setAiProvider(e.target.value)}
+                          className="w-full bg-slate-950 border border-white/10 rounded-xl p-3 text-white focus:outline-none"
+                        >
+                          <option value="groq">Groq Cloud (Llama 3.3 70B)</option>
+                          <option value="openai">ChatGPT API (GPT-4o mini)</option>
+                        </select>
+                      </div>
+
                       <button
-                        onClick={handleBulkSaveAI}
-                        disabled={saveAllProgress === 'saving'}
-                        className="btn-primary px-5 py-2.5 rounded-xl text-white font-display font-bold text-xs flex items-center gap-1.5"
-                        style={{ background: 'linear-gradient(135deg, #4ade80, #22c55e)' }}
+                        onClick={handleAIGenerateSyllabus}
+                        disabled={aiGenerating}
+                        className="btn-primary w-full py-3.5 rounded-xl text-white font-display font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2"
+                        style={{ background: 'linear-gradient(135deg, #f97316, #ea580c)' }}
                       >
-                        {saveAllProgress === 'saving' ? (
+                        {aiGenerating ? (
                           <>
-                            <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                            Committing...
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            Architecting Syllabus...
                           </>
                         ) : (
-                          'Approve & Save all in Bulk ✓'
+                          'Generate Full Syllabus 🚀'
                         )}
                       </button>
-                    )}
-                  </div>
-
-                  {generatedQuestions.length === 0 ? (
-                    <div className="text-center py-20 rounded-2xl border border-white/5" style={{ background: 'rgba(255,255,255,0.01)' }}>
-                      <div className="text-4xl mb-3">🤖</div>
-                      <p className="font-body text-slate-500 text-xs max-w-xs mx-auto leading-relaxed">
-                        No AI questions generated. Choose a target topic and click **"Generate CBSE Questions"** to trigger the AI streaming model!
-                      </p>
                     </div>
-                  ) : (
-                    <div className="space-y-3 animate-fade-in">
-                      {generatedQuestions.map((q, idx) => (
-                        <div key={idx} className="sci-card p-5 bg-slate-900/40 border-orange-500/20 relative overflow-hidden">
-                          <div className="absolute top-0 left-0 w-1 h-full bg-orange-500" />
-                          <div className="flex justify-between items-start mb-2">
-                            <span className="font-display font-black text-[10px] text-orange-400">Class {q.classNum} • GRANULAR DIFFICULTY: LEVEL {q.difficulty} / 10</span>
+
+                    {/* Syllabus Previews */}
+                    <div className="lg:col-span-2 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h3 className="font-display font-bold text-white text-sm">Syllabus Structure Preview</h3>
+                        {generatedSyllabus && (
+                          <button
+                            onClick={handleApproveSyllabus}
+                            disabled={savingSyllabus}
+                            className="btn-primary px-5 py-2.5 rounded-xl text-white font-display font-bold text-xs flex items-center gap-1.5"
+                            style={{ background: 'linear-gradient(135deg, #4ade80, #22c55e)' }}
+                          >
+                            {savingSyllabus ? (
+                              <>
+                                <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                Publishing...
+                              </>
+                            ) : (
+                              'Approve & Publish to Site ✓'
+                            )}
+                          </button>
+                        )}
+                      </div>
+
+                      {generatedSyllabus ? (
+                        <div className="space-y-4">
+                          {/* Topic Summary Card */}
+                          <div className="sci-card p-5 border-orange-500/30 relative overflow-hidden" style={{ background: 'rgba(11, 18, 37, 0.7)' }}>
+                            <div className="absolute top-0 left-0 w-1 h-full bg-orange-500" />
+                            <div className="flex items-center gap-3 mb-3">
+                              <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl bg-white/5" style={{ color: generatedSyllabus.color }}>
+                                {generatedSyllabus.icon || '🔬'}
+                              </div>
+                              <div>
+                                <span className="font-display font-black text-[10px] text-orange-400 uppercase tracking-widest block">Generated Topic (Grade {generatedSyllabus.classNum})</span>
+                                <h2 className="font-display font-bold text-white text-base leading-snug">{generatedSyllabus.title}</h2>
+                              </div>
+                            </div>
+                            <p className="font-body text-slate-300 text-xs leading-relaxed">{generatedSyllabus.description}</p>
                           </div>
-                          <p className="font-display font-bold text-white text-xs md:text-sm mb-3">{q.question}</p>
-                          <div className="grid grid-cols-2 gap-2 text-[11px] font-body text-slate-500 mb-3">
-                            {q.options.map((opt, i) => (
-                              <div key={i} className={i === q.correctIndex ? 'text-green-400 font-bold' : ''}>
-                                {['A', 'B', 'C', 'D'][i]}) {opt} {i === q.correctIndex ? '✓' : ''}
+
+                          {/* Subtopics lists */}
+                          <div className="space-y-4">
+                            {generatedSyllabus.subtopics.map((sub, sIdx) => (
+                              <div key={sIdx} className="sci-card p-5 bg-slate-900/35 border-white/5">
+                                <div className="border-b border-white/5 pb-3 mb-4">
+                                  <span className="font-display font-bold text-[10px] text-sky-400 uppercase">Chapter {sIdx + 1}</span>
+                                  <h3 className="font-display font-bold text-white text-sm mt-0.5">{sub.title}</h3>
+                                  <p className="font-body text-slate-400 text-xs mt-1">{sub.description}</p>
+                                </div>
+
+                                <div className="space-y-3">
+                                  {sub.questions?.map((q, qIdx) => (
+                                    <div key={qIdx} className="bg-slate-950/40 p-4 rounded-xl border border-white/5">
+                                      <div className="flex justify-between items-center mb-2">
+                                        <span className="font-display font-black text-[9px] text-slate-500">QUESTION {qIdx + 1} • DIFFICULTY {q.difficulty}/10</span>
+                                      </div>
+                                      <p className="font-display font-bold text-white text-xs mb-3">{q.question}</p>
+                                      <div className="grid grid-cols-2 gap-2 mb-3 text-[10px] font-body text-slate-400">
+                                        {q.options.map((opt, oIdx) => (
+                                          <div key={oIdx} className={oIdx === q.correctIndex ? 'text-green-400 font-bold' : ''}>
+                                            {['A', 'B', 'C', 'D'][oIdx]}) {opt} {oIdx === q.correctIndex ? '✓' : ''}
+                                          </div>
+                                        ))}
+                                      </div>
+                                      <p className="font-body text-slate-400 text-[10px] pt-2 border-t border-white/5">
+                                        💡 <span className="font-bold text-slate-500">Fun Fact:</span> {q.explanation}
+                                      </p>
+                                    </div>
+                                  ))}
+                                </div>
                               </div>
                             ))}
                           </div>
-                          <p className="font-body text-slate-400 text-[10px] md:text-xs leading-relaxed pt-2.5 border-t border-white/5">
-                            💡 <span className="font-bold text-slate-500 uppercase">AI Explanation:</span> {q.explanation}
+                        </div>
+                      ) : (
+                        <div className="text-center py-20 rounded-2xl border border-white/5" style={{ background: 'rgba(255,255,255,0.01)' }}>
+                          <div className="text-4xl mb-3">✨</div>
+                          <p className="font-body text-slate-500 text-xs max-w-xs mx-auto leading-relaxed">
+                            No syllabus generated yet. Type a topic name, select options, and click **"Generate Full Syllabus"** to let AI build a curriculum!
                           </p>
                         </div>
-                      ))}
+                      )}
                     </div>
-                  )}
-                </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    {/* Question booster config */}
+                    <div className="sci-card p-6 bg-slate-900/50 h-fit relative overflow-hidden">
+                      <div className="absolute top-2 right-2 bg-green-500/15 border border-green-500/30 text-green-400 font-display font-bold text-[8px] tracking-widest uppercase px-2 py-0.5 rounded-full">
+                        Gen-AI (Online)
+                      </div>
+                      <h3 className="font-display font-bold text-white text-sm mb-4">🧠 Question Booster</h3>
+                      
+                      <div className="mb-4">
+                        <label className="block text-slate-500 mb-1.5 font-body text-xs font-bold font-display">Target Topic to Seed</label>
+                        <select
+                          value={selectedTopicId}
+                          onChange={(e) => setSelectedTopicId(e.target.value)}
+                          className="w-full bg-slate-950 border border-white/10 rounded-xl p-3 text-white font-body text-xs focus:outline-none"
+                        >
+                          {topics.map((t) => (
+                            <option key={t.$id} value={t.$id}>
+                              Grade {t.classNum} - {t.title}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="mb-4">
+                        <label className="block text-slate-500 mb-1.5 font-body text-xs font-bold font-display">Target Chapter / Subtopic</label>
+                        <select
+                          value={selectedSubtopicId}
+                          onChange={(e) => setSelectedSubtopicId(e.target.value)}
+                          className="w-full bg-slate-950 border border-white/10 rounded-xl p-3 text-white font-body text-xs focus:outline-none"
+                        >
+                          {(topics.find(t => t.$id === selectedTopicId || t.id === selectedTopicId)?.subtopics || []).map((sub) => (
+                            <option key={sub.$id} value={sub.$id}>
+                              Order {sub.order} - {sub.title}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="mb-4 font-body text-xs">
+                        <label className="block text-slate-500 mb-1.5 font-bold font-display">AI Provider</label>
+                        <select
+                          value={aiProvider}
+                          onChange={(e) => setAiProvider(e.target.value)}
+                          className="w-full bg-slate-950 border border-white/10 rounded-xl p-3 text-white focus:outline-none"
+                        >
+                          <option value="groq">Groq Cloud (Llama 3.3 70B)</option>
+                          <option value="openai">ChatGPT API (GPT-4o mini)</option>
+                        </select>
+                      </div>
+
+                      <div className="mb-6 font-body text-xs">
+                        <div className="flex items-center justify-between mb-1.5">
+                          <label className="text-slate-500 font-bold">Quantity to Generate</label>
+                          <span className="font-display font-bold text-orange-400">{aiCount} MCQs</span>
+                        </div>
+                        <input
+                          type="range"
+                          min="1"
+                          max="5"
+                          value={aiCount}
+                          onChange={(e) => setAiCount(parseInt(e.target.value))}
+                          className="w-full h-1.5 bg-slate-950 rounded-lg appearance-none cursor-pointer accent-orange-500"
+                        />
+                      </div>
+
+                      <button
+                        onClick={handleAIGenerate}
+                        disabled={aiGenerating}
+                        className="btn-primary w-full py-3.5 rounded-xl text-white font-display font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2"
+                        style={{ background: 'linear-gradient(135deg, #f97316, #ea580c)' }}
+                      >
+                        {aiGenerating ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            AI Boosting...
+                          </>
+                        ) : (
+                          'Generate CBSE Questions with AI 🧠'
+                        )}
+                      </button>
+                    </div>
+
+                    {/* Question booster preview */}
+                    <div className="lg:col-span-2 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h3 className="font-display font-bold text-white text-sm">AI Generated Previews ({generatedQuestions.length})</h3>
+                        {generatedQuestions.length > 0 && (
+                          <button
+                            onClick={handleBulkSaveAI}
+                            disabled={saveAllProgress === 'saving'}
+                            className="btn-primary px-5 py-2.5 rounded-xl text-white font-display font-bold text-xs flex items-center gap-1.5"
+                            style={{ background: 'linear-gradient(135deg, #4ade80, #22c55e)' }}
+                          >
+                            {saveAllProgress === 'saving' ? (
+                              <>
+                                <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                Committing...
+                              </>
+                            ) : (
+                              'Approve & Save all in Bulk ✓'
+                            )}
+                          </button>
+                        )}
+                      </div>
+
+                      {generatedQuestions.length === 0 ? (
+                        <div className="text-center py-20 rounded-2xl border border-white/5" style={{ background: 'rgba(255,255,255,0.01)' }}>
+                          <div className="text-4xl mb-3">🤖</div>
+                          <p className="font-body text-slate-500 text-xs max-w-xs mx-auto leading-relaxed">
+                            No AI questions generated. Choose a target topic/chapter and click **"Generate CBSE Questions"** to trigger AI question booster!
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="space-y-3 animate-fade-in">
+                          {generatedQuestions.map((q, idx) => (
+                            <div key={idx} className="sci-card p-5 bg-slate-900/40 border-orange-500/20 relative overflow-hidden">
+                              <div className="absolute top-0 left-0 w-1 h-full bg-orange-500" />
+                              <div className="flex justify-between items-start mb-2">
+                                <span className="font-display font-black text-[10px] text-orange-400">Class {q.classNum} • DIFFICULTY: LEVEL {q.difficulty} / 10</span>
+                              </div>
+                              <p className="font-display font-bold text-white text-xs md:text-sm mb-3">{q.question}</p>
+                              <div className="grid grid-cols-2 gap-2 text-[11px] font-body text-slate-500 mb-3">
+                                {q.options.map((opt, i) => (
+                                  <div key={i} className={i === q.correctIndex ? 'text-green-400 font-bold' : ''}>
+                                    {['A', 'B', 'C', 'D'][i]}) {opt} {i === q.correctIndex ? '✓' : ''}
+                                  </div>
+                                ))}
+                              </div>
+                              <p className="font-body text-slate-400 text-[10px] md:text-xs leading-relaxed pt-2.5 border-t border-white/5">
+                                💡 <span className="font-bold text-slate-500 uppercase">AI Explanation:</span> {q.explanation}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
 
               </div>
             )}

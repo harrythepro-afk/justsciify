@@ -92,7 +92,7 @@ export async function POST(req) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { subtopicId, score, total, xpEarned } = await req.json();
+    const { subtopicId, score, total, xpEarned, duration } = await req.json();
 
     if (!subtopicId || score === undefined || total === undefined) {
       return NextResponse.json(
@@ -101,13 +101,25 @@ export async function POST(req) {
       );
     }
 
+    // Calculate/Verify XP server-side to prevent client manipulation
+    let validatedXp = 0;
+    if (subtopicId === 'National Science Olympiad (NSO) Mock' || subtopicId === 'NSO_mock') {
+      validatedXp = score * 20 + (score === total ? 50 : 0);
+    } else {
+      // Standard adaptive quiz: max possible is 30 XP per correct answer (difficulty 10 * 3)
+      const maxAllowedXp = score * 30;
+      const proposedXp = xpEarned || 0;
+      validatedXp = Math.max(0, Math.min(proposedXp, maxAllowedXp));
+    }
+
     // Save result
     const result = await QuizResult.create({
       userId: decoded.userId,
       subtopicId,
       score,
       total,
-      xpEarned: xpEarned || 0,
+      xpEarned: validatedXp,
+      duration: duration ? parseInt(duration) : 0,
       date: new Date(),
     });
 
@@ -115,7 +127,7 @@ export async function POST(req) {
     const user = await User.findById(decoded.userId);
     if (user) {
       const prevXP = user.xp || 0;
-      const newXP = prevXP + (xpEarned || 0);
+      const newXP = prevXP + validatedXp;
       const newBelt = getBeltForXP(newXP);
 
       // Streak logic

@@ -1,8 +1,18 @@
 import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
+import jwt from 'jsonwebtoken';
 import dbConnect from '@/lib/mongodb';
 import Topic from '@/models/Topic';
 import Subtopic from '@/models/Subtopic';
 import Question from '@/models/Question';
+import User from '@/models/User';
+
+export const dynamic = 'force-dynamic';
+
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  console.error('JWT_SECRET environment variable is not defined!');
+}
 
 // Intercept Question.create to map string difficulties to numeric values for backward compatibility
 const originalCreate = Question.create.bind(Question);
@@ -27,6 +37,24 @@ Question.create = function(data, ...args) {
 export async function GET() {
   try {
     await dbConnect();
+
+    // Enforce admin check
+    const cookieStore = cookies();
+    const token = cookieStore.get('token')?.value;
+    if (!token) {
+      return NextResponse.json({ error: 'Unauthorized: Admin authentication required' }, { status: 401 });
+    }
+    let decoded;
+    try {
+      decoded = jwt.verify(token, JWT_SECRET);
+    } catch {
+      return NextResponse.json({ error: 'Unauthorized: Invalid token' }, { status: 401 });
+    }
+
+    const adminUser = await User.findById(decoded.userId);
+    if (!adminUser || adminUser.email !== 'admin@justsciify.com') {
+      return NextResponse.json({ error: 'Forbidden: Admins Only' }, { status: 403 });
+    }
 
     // 1. Clear existing data to ensure a fresh, clean premium seed
     await Topic.deleteMany({});

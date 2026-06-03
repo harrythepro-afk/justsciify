@@ -84,7 +84,26 @@ function DashboardContent() {
             <span className="text-white">Just</span><span className="gradient-text">Sciify</span>
           </span>
         </Link>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-4">
+          <Link href="/leaderboard" className="font-display font-bold text-xs text-slate-400 hover:text-white transition-colors hidden md:inline">
+            ⚡ Leaderboard
+          </Link>
+          <Link href="/shop" className="font-display font-bold text-xs text-slate-400 hover:text-white transition-colors hidden md:inline">
+            🛒 Shop
+          </Link>
+          <Link href="/olympiad" className="font-display font-bold text-xs text-slate-400 hover:text-white transition-colors hidden md:inline">
+            🏆 Olympiad
+          </Link>
+          <Link href="/parent" className="font-display font-bold text-xs text-slate-400 hover:text-white transition-colors hidden md:inline">
+            👥 Parent Portal
+          </Link>
+          {profile?.email === 'admin@justsciify.com' && (
+            <Link href="/admin">
+              <button className="btn-secondary font-display font-bold text-xs px-4 py-2 rounded-lg text-white hover:bg-red-500/10 transition-colors" style={{ background: 'rgba(239, 68, 68, 0.15)', borderColor: 'rgba(239, 68, 68, 0.3)', color: '#f87171' }}>
+                ⚙️ Admin Console
+              </button>
+            </Link>
+          )}
           <Link href="/topics">
             <button className="btn-primary font-display font-bold text-xs px-4 py-2 rounded-lg text-white">
               📚 Start Learning
@@ -151,6 +170,66 @@ function DashboardContent() {
           <StatCard icon="🎯" value={results.length} label="Quizzes Taken" color="#a855f7" />
           <StatCard icon="⭐" value={profile.xp} label="Total XP" color="#facc15" />
           <StatCard icon="🏅" value={Object.keys(BELT_META).indexOf(profile.beltLevel)} label="Belt Level" color="#4ade80" />
+        </div>
+
+        {/* Kids' Adventure Deck */}
+        <div className="mb-10">
+          <h2 className="font-display font-bold text-white text-lg mb-4 flex items-center gap-2">
+            <span>🚀</span> Kids' Adventure Deck
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-5">
+            {/* Olympiad Card */}
+            <Link href="/olympiad">
+              <div className="sci-card p-5 hover:-translate-y-1 transition-all duration-200 cursor-pointer h-full relative overflow-hidden group border-red-500/20"
+                style={{ background: 'rgba(239, 68, 68, 0.03)' }}>
+                <div className="absolute top-0 right-0 w-24 h-24 bg-red-500/5 rounded-full blur-xl group-hover:bg-red-500/10 transition-all" />
+                <div className="text-3xl mb-3">🏆</div>
+                <div className="font-display font-bold text-white text-sm mb-1 group-hover:text-red-400 transition-colors">Olympiad Hub</div>
+                <p className="font-body text-slate-400 text-[11px] leading-relaxed">
+                  Challenge yourself with timed, high-difficulty NSO mock exams & earn massive bonus XP!
+                </p>
+              </div>
+            </Link>
+
+            {/* Shop Card */}
+            <Link href="/shop">
+              <div className="sci-card p-5 hover:-translate-y-1 transition-all duration-200 cursor-pointer h-full relative overflow-hidden group border-yellow-500/20"
+                style={{ background: 'rgba(250, 204, 21, 0.03)' }}>
+                <div className="absolute top-0 right-0 w-24 h-24 bg-yellow-500/5 rounded-full blur-xl group-hover:bg-yellow-500/10 transition-all" />
+                <div className="text-3xl mb-3">🛒</div>
+                <div className="font-display font-bold text-white text-sm mb-1 group-hover:text-yellow-400 transition-colors">Avatar Shop</div>
+                <p className="font-body text-slate-400 text-[11px] leading-relaxed">
+                  Exchange your hard-earned XP to unlock and equip custom profile avatars!
+                </p>
+              </div>
+            </Link>
+
+            {/* Leaderboard Card */}
+            <Link href="/leaderboard">
+              <div className="sci-card p-5 hover:-translate-y-1 transition-all duration-200 cursor-pointer h-full relative overflow-hidden group border-sky-500/20"
+                style={{ background: 'rgba(56, 189, 248, 0.03)' }}>
+                <div className="absolute top-0 right-0 w-24 h-24 bg-sky-500/5 rounded-full blur-xl group-hover:bg-sky-500/10 transition-all" />
+                <div className="text-3xl mb-3">⚡</div>
+                <div className="font-display font-bold text-white text-sm mb-1 group-hover:text-sky-400 transition-colors">Leaderboard</div>
+                <p className="font-body text-slate-400 text-[11px] leading-relaxed">
+                  Check out global student rankings and see where you stand among science champions!
+                </p>
+              </div>
+            </Link>
+
+            {/* Parent Portal Card */}
+            <Link href="/parent">
+              <div className="sci-card p-5 hover:-translate-y-1 transition-all duration-200 cursor-pointer h-full relative overflow-hidden group border-green-500/20"
+                style={{ background: 'rgba(74, 222, 128, 0.03)' }}>
+                <div className="absolute top-0 right-0 w-24 h-24 bg-green-500/5 rounded-full blur-xl group-hover:bg-green-500/10 transition-all" />
+                <div className="text-3xl mb-3">👥</div>
+                <div className="font-display font-bold text-white text-sm mb-1 group-hover:text-green-400 transition-colors">Parent Portal</div>
+                <p className="font-body text-slate-400 text-[11px] leading-relaxed">
+                  Parents can view detailed progress reports, syllabus completion charts, and time stats.
+                </p>
+              </div>
+            </Link>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

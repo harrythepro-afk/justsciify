@@ -33,13 +33,42 @@ function ParentContent() {
   let earthScore = { correct: 0, total: 0 };
 
   results.forEach(r => {
-    if (r.topicId.includes('Gravity') || r.topicId.includes('Forces') || r.topicId.includes('Olympiad')) {
+    let nameToMatch = '';
+    if (r.subtopicId) {
+      if (typeof r.subtopicId === 'object') {
+        const subTitle = r.subtopicId.title || '';
+        const topTitle = r.subtopicId.topicId?.title || '';
+        nameToMatch = `${topTitle} ${subTitle}`;
+      } else {
+        nameToMatch = r.subtopicId;
+      }
+    }
+
+    if (
+      nameToMatch.includes('Gravity') ||
+      nameToMatch.includes('Forces') ||
+      nameToMatch.includes('Olympiad') ||
+      nameToMatch.includes('Matter') ||
+      nameToMatch.includes('Robotics')
+    ) {
       physicsScore.correct += r.score;
       physicsScore.total += r.total;
-    } else if (r.topicId.includes('Living') || r.topicId.includes('Plants') || r.topicId.includes('Animals')) {
+    } else if (
+      nameToMatch.includes('Living') ||
+      nameToMatch.includes('Plants') ||
+      nameToMatch.includes('Animals') ||
+      nameToMatch.includes('Organ') ||
+      nameToMatch.includes('Body')
+    ) {
       biologyScore.correct += r.score;
       biologyScore.total += r.total;
-    } else if (r.topicId.includes('Water') || r.topicId.includes('Cycle') || r.topicId.includes('Space') || r.topicId.includes('System')) {
+    } else if (
+      nameToMatch.includes('Water') ||
+      nameToMatch.includes('Cycle') ||
+      nameToMatch.includes('Space') ||
+      nameToMatch.includes('System') ||
+      nameToMatch.includes('Disasters')
+    ) {
       earthScore.correct += r.score;
       earthScore.total += r.total;
     }
@@ -157,6 +186,96 @@ function ParentContent() {
                     </>
                   )}
                 </ul>
+              </div>
+
+              {/* Detailed Activity Logs */}
+              <div className="sci-card p-6 animate-fade-in" style={{ background: 'rgba(11, 18, 37, 0.6)' }}>
+                <h2 className="font-display font-bold text-white text-base mb-4">📝 Recent Quiz Activity Log</h2>
+                {results.length === 0 ? (
+                  <p className="font-body text-slate-500 text-xs py-4 text-center">No completed quiz records found yet.</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left font-body text-xs text-slate-300">
+                      <thead>
+                        <tr className="border-b border-white/10 text-slate-500 uppercase text-[10px] tracking-wider">
+                          <th className="pb-3 font-bold">Topic / Quiz</th>
+                          <th className="pb-3 font-bold">Score</th>
+                          <th className="pb-3 font-bold">Accuracy</th>
+                          <th className="pb-3 font-bold">XP Gained</th>
+                          <th className="pb-3 font-bold">Time Spent</th>
+                          <th className="pb-3 font-bold">Completed On</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-white/5">
+                        {results.map((r) => {
+                          const dateStr = (r.date || r.createdAt) ? new Date(r.date || r.createdAt).toLocaleDateString(undefined, {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric'
+                          }) : 'N/A';
+                          
+                          const accuracy = r.total > 0 ? Math.round((r.score / r.total) * 100) : 0;
+                          
+                          let title = 'General Science Quiz';
+                          if (r.subtopicId) {
+                            if (typeof r.subtopicId === 'object') {
+                              const subTitle = r.subtopicId.title || '';
+                              const topTitle = r.subtopicId.topicId?.title || '';
+                              title = subTitle ? `${topTitle} - ${subTitle}` : topTitle;
+                            } else {
+                              title = r.subtopicId;
+                            }
+                          }
+
+                          // Format duration
+                          let timeStr = '--';
+                          if (r.duration !== undefined && r.duration !== null) {
+                            const mins = Math.floor(r.duration / 60);
+                            const secs = r.duration % 60;
+                            if (mins > 0) {
+                              timeStr = `${mins}m ${secs}s`;
+                            } else {
+                              timeStr = `${secs}s`;
+                            }
+                          }
+
+                          return (
+                            <tr key={r.$id || r.id || r._id} className="hover:bg-white/5 transition-colors">
+                              <td className="py-3 pr-2">
+                                <span className="font-bold text-white block truncate max-w-[180px] md:max-w-[240px]">
+                                  {title}
+                                </span>
+                              </td>
+                              <td className="py-3 text-slate-200">
+                                {r.score} / {r.total}
+                              </td>
+                              <td className="py-3">
+                                <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${
+                                  accuracy >= 80 
+                                    ? 'bg-green-500/10 text-green-400 border border-green-500/20' 
+                                    : accuracy >= 50 
+                                      ? 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20' 
+                                      : 'bg-red-500/10 text-red-400 border border-red-500/20'
+                                }`}>
+                                  {accuracy}%
+                                </span>
+                              </td>
+                              <td className="py-3 text-yellow-400 font-bold">
+                                +{r.xpEarned || 0} XP
+                              </td>
+                              <td className="py-3 text-sky-400">
+                                ⏱️ {timeStr}
+                              </td>
+                              <td className="py-3 text-slate-500 text-[11px]">
+                                {dateStr}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             </div>
 

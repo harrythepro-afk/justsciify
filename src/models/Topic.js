@@ -20,6 +20,11 @@ const TopicSchema = new mongoose.Schema({
     required: [true, 'Please provide an icon name'],
     default: '🔬',
   },
+  color: {
+    type: String,
+    required: [true, 'Please provide a hex color'],
+    default: '#38bdf8',
+  },
 }, { timestamps: true });
 
 export default mongoose.models.Topic || mongoose.model('Topic', TopicSchema);

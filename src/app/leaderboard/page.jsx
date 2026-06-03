@@ -14,9 +14,23 @@ const BELT_EMOJIS = {
   black: '🏆',
 };
 
+const AVATAR_EMOJIS = {
+  explorer_default: '🧑‍🔬',
+  avatar_astro_boy: '🧑‍🚀',
+  avatar_cyber_cyborg: '🤖',
+  avatar_alien_xenon: '👽',
+  avatar_solar_lord: '👑',
+  avatar_blackhole_mage: '🌌',
+};
+
+const getAvatarEmoji = (avatarId) => {
+  return AVATAR_EMOJIS[avatarId] || AVATAR_EMOJIS['explorer_default'];
+};
+
 function LeaderboardContent() {
   const { user, profile } = useAuth();
   const [students, setStudents] = useState([]);
+  const [selectedGrade, setSelectedGrade] = useState('All'); // 'All' | '3' | '4' | '5'
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -36,8 +50,13 @@ function LeaderboardContent() {
 
   if (!profile) return null;
 
-  // Find user's own rank
-  const myRank = students.findIndex((s) => s.userId === user.$id) + 1;
+  // Filter students based on selected grade level
+  const filteredStudents = selectedGrade === 'All'
+    ? students
+    : students.filter((s) => String(s.classNum) === selectedGrade);
+
+  // Find user's own rank within the filtered subset
+  const myRank = filteredStudents.findIndex((s) => s.userId === user.$id) + 1;
 
   return (
     <div className="min-h-screen pb-20 relative" style={{ background: '#03050F' }}>
@@ -65,7 +84,7 @@ function LeaderboardContent() {
 
       <div className="max-w-4xl w-full mx-auto px-4 mt-12 z-10 relative">
         {/* Header */}
-        <div className="text-center mb-12">
+        <div className="text-center mb-10">
           <span className="section-label mb-3 border-yellow-500/20 text-yellow-400" style={{ background: 'rgba(250,204,21,0.08)' }}>National Championship</span>
           <h1 className="font-display font-black text-4xl text-white mb-2 tracking-tight">
             Weekly Live <span className="text-yellow-400">Leaderboard</span>
@@ -75,32 +94,52 @@ function LeaderboardContent() {
           </p>
         </div>
 
+        {/* Grade-Level Filter Tabs */}
+        <div className="flex justify-center gap-2 mb-10 bg-slate-900/60 p-1.5 rounded-2xl border border-white/5 max-w-md mx-auto">
+          {['All', '3', '4', '5'].map((grade) => {
+            const isSelected = selectedGrade === grade;
+            return (
+              <button
+                key={grade}
+                onClick={() => setSelectedGrade(grade)}
+                className={`flex-1 py-2 px-3 rounded-xl font-display font-bold text-xs transition-all ${
+                  isSelected 
+                    ? 'bg-yellow-400 text-black shadow-lg shadow-yellow-400/20' 
+                    : 'text-slate-400 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                {grade === 'All' ? 'All Grades' : `Grade ${grade}`}
+              </button>
+            );
+          })}
+        </div>
+
         {loading ? (
           <div className="flex flex-col items-center py-20">
             <div className="w-10 h-10 border-3 border-yellow-400 border-t-transparent rounded-full animate-spin mb-4" />
             <p className="font-body text-slate-500 text-xs">Accessing arena registry...</p>
           </div>
         ) : (
-          <div className="space-y-6">
+          <div className="space-y-6 animate-fade-in">
             {/* Top 3 podium boxes */}
             <div className="grid grid-cols-3 gap-3 md:gap-6 items-end mb-10 pt-8 max-w-2xl mx-auto">
               {/* Rank 2 (Left) */}
-              {students[1] && (
-                <div className="sci-card p-4 md:p-6 text-center flex flex-col items-center relative overflow-hidden"
+              {filteredStudents[1] && (
+                <div className="sci-card p-4 md:p-6 text-center flex flex-col items-center relative overflow-hidden animate-fade-in"
                   style={{ background: 'rgba(11, 18, 37, 0.6)', borderColor: 'rgba(255,255,255,0.06)', height: '180px' }}>
                   <div className="text-2xl mb-1">🥈</div>
-                  <div className="w-10 h-10 rounded-full bg-slate-800 border border-white/10 flex items-center justify-center font-display font-bold text-sm text-slate-300">
-                    {students[1].name.substring(0, 2).toUpperCase()}
+                  <div className="w-10 h-10 rounded-full bg-slate-800 border border-white/10 flex items-center justify-center text-xl">
+                    {getAvatarEmoji(filteredStudents[1].avatarId)}
                   </div>
-                  <div className="font-display font-bold text-white text-xs mt-2 truncate w-full">{students[1].name}</div>
-                  <div className="font-body text-[10px] text-slate-500 mt-0.5">{BELT_EMOJIS[students[1].beltLevel] || '🥋'} {students[1].beltLevel}</div>
-                  <div className="font-display font-black text-xs text-yellow-400 mt-2">{students[1].xp} XP</div>
+                  <div className="font-display font-bold text-white text-xs mt-2 truncate w-full">{filteredStudents[1].name}</div>
+                  <div className="font-body text-[10px] text-slate-500 mt-0.5">{BELT_EMOJIS[filteredStudents[1].beltLevel] || '🥋'} {filteredStudents[1].beltLevel}</div>
+                  <div className="font-display font-black text-xs text-yellow-400 mt-2">{filteredStudents[1].xp} XP</div>
                 </div>
               )}
 
               {/* Rank 1 (Center) */}
-              {students[0] && (
-                <div className="sci-card p-5 md:p-6 text-center flex flex-col items-center relative overflow-hidden transform scale-105"
+              {filteredStudents[0] && (
+                <div className="sci-card p-5 md:p-6 text-center flex flex-col items-center relative overflow-hidden transform scale-105 animate-fade-in"
                   style={{
                     background: 'rgba(11, 18, 37, 0.8)',
                     borderColor: 'rgba(250,204,21,0.3)',
@@ -109,31 +148,31 @@ function LeaderboardContent() {
                   }}>
                   <div className="absolute top-0 left-0 w-full h-[3px] bg-yellow-400" />
                   <div className="text-3xl mb-1 filter drop-shadow-[0_0_10px_rgba(250,204,21,0.5)]">👑</div>
-                  <div className="w-12 h-12 rounded-full bg-yellow-500/10 border-2 border-yellow-400 flex items-center justify-center font-display font-bold text-sm text-yellow-400">
-                    {students[0].name.substring(0, 2).toUpperCase()}
+                  <div className="w-12 h-12 rounded-full bg-yellow-500/10 border-2 border-yellow-400 flex items-center justify-center text-2xl">
+                    {getAvatarEmoji(filteredStudents[0].avatarId)}
                   </div>
-                  <div className="font-display font-black text-white text-sm mt-2 truncate w-full">{students[0].name}</div>
-                  <div className="font-body text-[10px] text-yellow-500 mt-0.5">{BELT_EMOJIS[students[0].beltLevel] || '🥋'} {students[0].beltLevel}</div>
-                  <div className="font-display font-black text-sm text-yellow-400 mt-2">{students[0].xp} XP</div>
+                  <div className="font-display font-black text-white text-sm mt-2 truncate w-full">{filteredStudents[0].name}</div>
+                  <div className="font-body text-[10px] text-yellow-500 mt-0.5">{BELT_EMOJIS[filteredStudents[0].beltLevel] || '🥋'} {filteredStudents[0].beltLevel}</div>
+                  <div className="font-display font-black text-sm text-yellow-400 mt-2">{filteredStudents[0].xp} XP</div>
                 </div>
               )}
 
               {/* Rank 3 (Right) */}
-              {students[2] && (
-                <div className="sci-card p-4 md:p-6 text-center flex flex-col items-center relative overflow-hidden"
+              {filteredStudents[2] && (
+                <div className="sci-card p-4 md:p-6 text-center flex flex-col items-center relative overflow-hidden animate-fade-in"
                   style={{ background: 'rgba(11, 18, 37, 0.6)', borderColor: 'rgba(255,255,255,0.06)', height: '160px' }}>
                   <div className="text-2xl mb-1">🥉</div>
-                  <div className="w-10 h-10 rounded-full bg-slate-800 border border-white/10 flex items-center justify-center font-display font-bold text-sm text-amber-600">
-                    {students[2].name.substring(0, 2).toUpperCase()}
+                  <div className="w-10 h-10 rounded-full bg-slate-800 border border-white/10 flex items-center justify-center text-xl">
+                    {getAvatarEmoji(filteredStudents[2].avatarId)}
                   </div>
-                  <div className="font-display font-bold text-white text-xs mt-2 truncate w-full">{students[2].name}</div>
-                  <div className="font-body text-[10px] text-slate-500 mt-0.5">{BELT_EMOJIS[students[2].beltLevel] || '🥋'} {students[2].beltLevel}</div>
-                  <div className="font-display font-black text-xs text-yellow-400 mt-2">{students[2].xp} XP</div>
+                  <div className="font-display font-bold text-white text-xs mt-2 truncate w-full">{filteredStudents[2].name}</div>
+                  <div className="font-body text-[10px] text-slate-500 mt-0.5">{BELT_EMOJIS[filteredStudents[2].beltLevel] || '🥋'} {filteredStudents[2].beltLevel}</div>
+                  <div className="font-display font-black text-xs text-yellow-400 mt-2">{filteredStudents[2].xp} XP</div>
                 </div>
               )}
             </div>
 
-            {/* User\'s own rank sticky widget */}
+            {/* User's own rank sticky widget */}
             {myRank > 0 && (
               <div className="sci-card p-4 flex items-center justify-between border-yellow-500/20 mb-8"
                 style={{ background: 'rgba(250,204,21,0.06)' }}>
@@ -156,43 +195,49 @@ function LeaderboardContent() {
                 Arena Students Grid
               </div>
               <div className="divide-y divide-white/5">
-                {students.map((student, idx) => {
-                  const isMe = student.userId === user.$id;
-                  const rank = idx + 1;
+                {filteredStudents.length === 0 ? (
+                  <div className="p-8 text-center font-body text-slate-500 text-xs">
+                    No student rankings logged for this grade yet. Be the first to claim a spot!
+                  </div>
+                ) : (
+                  filteredStudents.map((student, idx) => {
+                    const isMe = student.userId === user.$id;
+                    const rank = idx + 1;
 
-                  return (
-                    <div
-                      key={student.$id}
-                      className={`p-4 flex items-center justify-between gap-4 transition-colors ${
-                        isMe ? 'bg-yellow-500/5' : 'hover:bg-white/5'
-                      }`}
-                    >
-                      <div className="flex items-center gap-4">
-                        {/* Rank index */}
-                        <span className="font-display font-black text-xs text-slate-500 w-6 text-center">
-                          #{rank}
-                        </span>
+                    return (
+                      <div
+                        key={student.$id}
+                        className={`p-4 flex items-center justify-between gap-4 transition-colors ${
+                          isMe ? 'bg-yellow-500/5' : 'hover:bg-white/5'
+                        }`}
+                      >
+                        <div className="flex items-center gap-4">
+                          {/* Rank index */}
+                          <span className="font-display font-black text-xs text-slate-500 w-6 text-center">
+                            #{rank}
+                          </span>
 
-                        <div className="w-8 h-8 rounded-full bg-slate-900 border border-white/5 flex items-center justify-center font-display font-bold text-xs text-slate-400">
-                          {student.name.substring(0, 2).toUpperCase()}
+                          <div className="w-8 h-8 rounded-full bg-slate-900 border border-white/5 flex items-center justify-center text-base">
+                            {getAvatarEmoji(student.avatarId)}
+                          </div>
+
+                          <div>
+                            <span className="font-display font-bold text-xs md:text-sm text-white flex items-center gap-1.5">
+                              {student.name} {isMe && <span className="text-[10px] bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-1.5 py-0.5 rounded">You</span>}
+                            </span>
+                            <span className="font-body text-[10px] text-slate-500 mt-0.5 block">
+                              Grade {student.classNum} • {BELT_EMOJIS[student.beltLevel]} {student.beltLevel.toUpperCase()} BELT
+                            </span>
+                          </div>
                         </div>
 
-                        <div>
-                          <span className="font-display font-bold text-xs md:text-sm text-white flex items-center gap-1.5">
-                            {student.name} {isMe && <span className="text-[10px] bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-1.5 py-0.5 rounded">You</span>}
-                          </span>
-                          <span className="font-body text-[10px] text-slate-500 mt-0.5 block">
-                            Grade {student.classNum} • {BELT_EMOJIS[student.beltLevel]} {student.beltLevel.toUpperCase()} BELT
-                          </span>
+                        <div className="font-display font-black text-xs md:text-sm text-yellow-400">
+                          {student.xp} XP
                         </div>
                       </div>
-
-                      <div className="font-display font-black text-xs md:text-sm text-yellow-400">
-                        {student.xp} XP
-                      </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })
+                )}
               </div>
             </div>
           </div>

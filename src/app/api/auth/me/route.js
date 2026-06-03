@@ -4,6 +4,8 @@ import jwt from 'jsonwebtoken';
 import dbConnect from '@/lib/mongodb';
 import User from '@/models/User';
 
+export const dynamic = 'force-dynamic';
+
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
   console.error('JWT_SECRET environment variable is not defined!');
@@ -60,12 +62,12 @@ export async function PUT(req) {
 
     const data = await req.json();
     
-    // We only update clean updatable fields like classNum, name, xp, beltLevel, completedTopics, streak, lastActive
-    const updatableFields = ['name', 'classNum', 'xp', 'beltLevel', 'completedTopics', 'streak', 'lastActive', 'unlockedAvatars', 'avatarId'];
+    // Allow only name, classNum, and avatarId updates from client-side profile updates
+    const updatableFields = ['name', 'classNum', 'avatarId'];
     const updateData = {};
     for (const key of updatableFields) {
       if (data[key] !== undefined) {
-        updateData[key] = data[key];
+        updateData[key] = key === 'classNum' ? parseInt(data[key]) : data[key];
       }
     }
 

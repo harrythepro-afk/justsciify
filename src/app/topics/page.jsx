@@ -56,6 +56,13 @@ function TopicsContent() {
           </span>
         </Link>
         <div className="flex items-center gap-3">
+          {profile?.email === 'admin@justsciify.com' && (
+            <Link href="/admin">
+              <button className="btn-secondary font-display font-bold text-xs px-4 py-2 rounded-lg text-white hover:bg-red-500/10 transition-colors" style={{ background: 'rgba(239, 68, 68, 0.15)', borderColor: 'rgba(239, 68, 68, 0.3)', color: '#f87171' }}>
+                ⚙️ Admin Console
+              </button>
+            </Link>
+          )}
           <Link href="/dashboard" className="font-body text-xs text-slate-400 hover:text-white transition-colors px-3 py-2">
             Dashboard
           </Link>

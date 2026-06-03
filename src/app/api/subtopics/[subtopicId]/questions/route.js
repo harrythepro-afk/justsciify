@@ -83,15 +83,26 @@ export async function POST(req, { params }) {
     const { subtopicId } = params;
     const data = await req.json();
 
-    const question = await Question.create({
-      ...data,
+    const questionData = {
       subtopicId,
-    });
+      questionText: data.questionText || data.question,
+      options: data.options,
+      correctOption: data.correctOption !== undefined ? data.correctOption : data.correctIndex,
+      explanation: data.explanation,
+      difficulty: typeof data.difficulty === 'string' ? 
+        (data.difficulty === 'easy' ? 3 : data.difficulty === 'medium' ? 6 : 9) :
+        (parseInt(data.difficulty) || 5),
+    };
+
+    const question = await Question.create(questionData);
 
     return NextResponse.json({
       ...question.toObject(),
       id: question._id.toString(),
-      $id: question._id.toString()
+      $id: question._id.toString(),
+      question: question.questionText,
+      correctIndex: question.correctOption,
+      difficulty: question.difficulty
     }, { status: 201 });
   } catch (error) {
     console.error('Create question error:', error);
