@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import jwt from 'jsonwebtoken';
+import mongoose from 'mongoose';
 import dbConnect from '@/lib/mongodb';
 import QuizResult from '@/models/QuizResult';
 import User from '@/models/User';
@@ -47,10 +48,26 @@ export async function GET(req) {
     const { searchParams } = new URL(req.url);
     const limit = parseInt(searchParams.get('limit') || '10');
 
+    // Fetch quiz results for the user without populating subtopicId immediately
     const results = await QuizResult.find({ userId: decoded.userId })
       .sort({ date: -1 })
-      .limit(limit)
-      .populate({
+      .limit(limit);
+
+    // Filter results to separate those with valid ObjectId subtopicId
+    const toPopulate = [];
+    const noPopulate = [];
+
+    for (const r of results) {
+      if (mongoose.Types.ObjectId.isValid(r.subtopicId)) {
+        toPopulate.push(r);
+      } else {
+        noPopulate.push(r);
+      }
+    }
+
+    // Populate only the valid ObjectIds
+    if (toPopulate.length > 0) {
+      await QuizResult.populate(toPopulate, {
         path: 'subtopicId',
         select: 'title topicId',
         populate: {
@@ -58,8 +75,14 @@ export async function GET(req) {
           select: 'title icon',
         },
       });
+    }
 
-    const formattedResults = results.map(r => ({
+    // Merge them back and sort by date descending
+    const allResults = [...toPopulate, ...noPopulate].sort(
+      (a, b) => new Date(b.date) - new Date(a.date)
+    );
+
+    const formattedResults = allResults.map(r => ({
       ...r.toObject(),
       id: r._id.toString(),
       $id: r._id.toString(),
